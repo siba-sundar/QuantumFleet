@@ -1,0 +1,582 @@
+{
+    "contractAddress": "0x7EC8b793Dd536A8c2d06769A04666b7A4721aDE9",
+    "contractABI": [
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "truckId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "currentLoad",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "utilizationPercentage",
+              "type": "uint256"
+            }
+          ],
+          "name": "CapacityUpdated",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "routeId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "string[]",
+              "name": "touchpoints",
+              "type": "string[]"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "maxCapacity",
+              "type": "uint256"
+            }
+          ],
+          "name": "RouteAdded",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "truckId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "detourPoint",
+              "type": "string"
+            }
+          ],
+          "name": "RouteDeviation",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "truckId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256[]",
+              "name": "newEstimatedArrivalTimes",
+              "type": "uint256[]"
+            }
+          ],
+          "name": "ScheduleUpdated",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "truckId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "bookedCapacity",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "address",
+              "name": "bookedBy",
+              "type": "address"
+            }
+          ],
+          "name": "ThirdPartyBooked",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "truckId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "maxCapacity",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "routeId",
+              "type": "uint256"
+            }
+          ],
+          "name": "TruckAdded",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "truckId",
+              "type": "uint256"
+            },
+            {
+              "indexed": false,
+              "internalType": "string",
+              "name": "reason",
+              "type": "string"
+            },
+            {
+              "indexed": false,
+              "internalType": "uint256",
+              "name": "timeDelayed",
+              "type": "uint256"
+            }
+          ],
+          "name": "TruckDelayed",
+          "type": "event"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "string[]",
+              "name": "_touchpoints",
+              "type": "string[]"
+            },
+            {
+              "internalType": "uint256[]",
+              "name": "_loadUnloadPoints",
+              "type": "uint256[]"
+            },
+            {
+              "internalType": "uint256",
+              "name": "_maxCapacity",
+              "type": "uint256"
+            }
+          ],
+          "name": "addRoute",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "_maxCapacity",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "_routeId",
+              "type": "uint256"
+            }
+          ],
+          "name": "addTruck",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "_truckId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "_capacity",
+              "type": "uint256"
+            }
+          ],
+          "name": "bookThirdPartyCapacity",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "_routeId",
+              "type": "uint256"
+            }
+          ],
+          "name": "getRouteInfo",
+          "outputs": [
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "routeId",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "string[]",
+                  "name": "touchpoints",
+                  "type": "string[]"
+                },
+                {
+                  "internalType": "uint256[]",
+                  "name": "loadUnloadPoints",
+                  "type": "uint256[]"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxCapacity",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct RTNSupplyChain.Route",
+              "name": "",
+              "type": "tuple"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "_truckId",
+              "type": "uint256"
+            }
+          ],
+          "name": "getTruckInfo",
+          "outputs": [
+            {
+              "components": [
+                {
+                  "internalType": "uint256",
+                  "name": "truckId",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "maxCapacity",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "currentLoad",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "routeId",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "bool",
+                  "name": "isDelayed",
+                  "type": "bool"
+                },
+                {
+                  "internalType": "string",
+                  "name": "gpsStatus",
+                  "type": "string"
+                }
+              ],
+              "internalType": "struct RTNSupplyChain.Truck",
+              "name": "",
+              "type": "tuple"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "_truckId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "_reason",
+              "type": "string"
+            },
+            {
+              "internalType": "uint256",
+              "name": "_timeDelayed",
+              "type": "uint256"
+            }
+          ],
+          "name": "reportDelay",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "_truckId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "_detourPoint",
+              "type": "string"
+            }
+          ],
+          "name": "reportDetour",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "routeCount",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "name": "routes",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "routeId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "maxCapacity",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "name": "thirdPartyBookings",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "truckId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "bookedCapacity",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "bookedBy",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [],
+          "name": "truckCount",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "name": "truckDelays",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "truckId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "reason",
+              "type": "string"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timeDelayed",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "name": "trucks",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "truckId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "maxCapacity",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "currentLoad",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "routeId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "isDelayed",
+              "type": "bool"
+            },
+            {
+              "internalType": "string",
+              "name": "gpsStatus",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "_truckId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "_status",
+              "type": "string"
+            }
+          ],
+          "name": "updateGPSStatus",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "_truckId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "_touchpointIndex",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "_unloadAmount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "_loadAmount",
+              "type": "uint256"
+            }
+          ],
+          "name": "updateLoadUnload",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "_truckId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256[]",
+              "name": "_newEstimatedArrivalTimes",
+              "type": "uint256[]"
+            }
+          ],
+          "name": "updateSchedule",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        }
+      ]
+  }
+  

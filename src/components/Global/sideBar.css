@@ -1,0 +1,33 @@
+/* Custom scrollbar styling */
+.truck-list {
+    direction: rtl; /* Moves scrollbar to the left */
+  }
+  
+  /* Revert text direction inside the container */
+  .truck-list > * {
+    direction: ltr;
+  }
+  
+  /* Custom scrollbar for WebKit browsers (Chrome, Safari, Edge) */
+  .truck-list::-webkit-scrollbar {
+    width: 8px; /* Slim scrollbar */
+  }
+  
+  .truck-list::-webkit-scrollbar-thumb {
+    background-color: #1E3A8A; /* Blue color */
+    border-radius: 10px;
+  }
+  
+  .truck-list::-webkit-scrollbar-thumb:hover {
+    background-color: #3B82F6; /* Lighter blue on hover */
+  }
+  
+  .truck-list::-webkit-scrollbar-track {
+    background-color: #E5E7EB; /* Light gray track */
+  }
+  
+  /* For Firefox: Gutter on the left */
+  .truck-list {
+    scrollbar-gutter: stable both-edges; /* Keeps the gutter stable */
+  }
+  

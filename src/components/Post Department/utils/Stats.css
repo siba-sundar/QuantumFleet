@@ -1,0 +1,6 @@
+/* Stats.css */
+
+  .canvasjs-chart-credit {
+    display: none !important; /* Hide the CanvasJS credit label if needed */
+  }
+  
