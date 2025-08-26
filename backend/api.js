@@ -115,12 +115,51 @@ app.get('/api/trucks/:id', (req, res) => {
   res.json({ message: 'Truck info', truck });
 });
 
+// List all trucks
+app.get('/api/trucks', (req, res) => {
+  res.json({ message: 'Trucks list', trucks });
+});
+
 // GetRouteInfo
 app.get('/api/routes/:id', (req, res) => {
   const routeId = Number(req.params.id);
   const route = routes.find(r => r.routeId === routeId);
   if (!route) return res.status(404).json({ error: 'Route not found' });
   res.json({ message: 'Route info', route });
+});
+
+// List all routes
+app.get('/api/routes', (req, res) => {
+  res.json({ message: 'Routes list', routes });
+});
+
+// Dev: Seed trucks with full objects (driver, number, status, image, etc.)
+// This endpoint is for testing and won't be present in production.
+app.post('/api/seed-trucks', (req, res) => {
+  const payload = req.body;
+  const items = Array.isArray(payload) ? payload : [payload];
+  const added = [];
+  items.forEach(item => {
+    const truckId = trucks.length + 1;
+    const truck = {
+      truckId,
+      maxCapacity: Number(item.maxCapacity || 0),
+      currentLoad: Number(item.currentLoad || 0),
+      routeId: Number(item.routeId || 0),
+      isDelayed: item.isDelayed || false,
+      gpsStatus: item.gpsStatus || 'OK',
+      schedule: Array.isArray(item.schedule) ? item.schedule : [],
+      loadUnload: Array.isArray(item.loadUnload) ? item.loadUnload : [],
+      // optional display fields used by frontend
+      number: item.number || null,
+      driver: item.driver || null,
+      status: item.status || null,
+      image: item.image || null,
+    };
+    trucks.push(truck);
+    added.push(truck);
+  });
+  res.json({ message: 'Seeded trucks', added });
 });
 
 // Start server

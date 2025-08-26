@@ -1,21 +1,21 @@
 import Map from "../../Post Department/utils/map.jsx";
 import TruckLoad from "../../Post Department/utils/loadDetails.jsx";
 import QR from "../../../assets/QR.svg";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import api from '../../../utils/api'
 
 function TruckDetails() {
-  const truckData = [
-    {
-      id: 1,
-      number: "DL-01-AA-1234",
-      driver: "Rajesh Kumar",
-      status: "In Transit",
-      location: { lat: 28.7041, lng: 77.1025 }, // Example coordinates for Delhi
-      distanceCovered: 150,
-      avgSpeed: 60,
-      timeToDestination: "45",
-    },
-  ];
+  const [truckData, setTruckData] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(()=>{
+    let mounted = true
+    api.fetchTrucks()
+      .then(list => { if(mounted) setTruckData(list) })
+      .catch(()=>{ if(mounted) setTruckData([]) })
+      .finally(()=> { if(mounted) setLoading(false) })
+    return ()=> mounted = false
+  },[])
 
   const truckLoadPercentage = 92;
   const truckDetails = {
@@ -26,14 +26,19 @@ function TruckDetails() {
     maintenance: "12-Dec-03", // Maintenance date
   };
 
-  const [selectedTruckId, setSelectedTruckId] = useState(truckData[0]?.id);
-  const selectedTruck =
-    truckData.find((t) => t.id === selectedTruckId) || truckData[0];
+  const [selectedTruckId, setSelectedTruckId] = useState();
+  const selectedTruck = truckData.find((t) => t.id === selectedTruckId) || truckData[0];
+
+  useEffect(()=>{
+    if(truckData.length && selectedTruckId == null){
+      setSelectedTruckId(truckData[0].id)
+    }
+  },[truckData, selectedTruckId])
 
   return (
     <div className="w-full">
-      <div className="flex gap-4">
-        <Map trucks={[selectedTruck]} />
+  <div className="flex gap-4">
+  {loading ? <div>Loading trucks...</div> : <Map trucks={[selectedTruck]} />}
 
         <div className="flex-1">
           <div className="flex flex-col flex-wrap shadow-lg rounded-lg p-4 border border-gray-300 ">
