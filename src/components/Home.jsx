@@ -6,7 +6,7 @@ const Home = () => {
   const navigate = useNavigate(); // Create navigate function
 
   const handleGetStarted = () => {
-    navigate('/signupcard'); // Navigate to /signupcard route
+    navigate('/auth/signup'); // Navigate to /auth/signup route
   };
 
   return (

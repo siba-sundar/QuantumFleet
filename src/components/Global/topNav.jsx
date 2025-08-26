@@ -17,65 +17,88 @@ function TopNav({ options }) {
 
     // Define the routes corresponding to each option
     switch (option) {
-      case 'Truck':
-        navigate('/truck');
-        break;
-
-      case 'Third Party Logistics':
-        navigate('/third-party-logistics');
-        break;
-
-      case 'Drivers':
-        navigate('/drivers');
-        break;
-
-
-      case 'Warehouse':
-        navigate('/warehouse');
-        break;
-
-      case 'Inbox':
-        navigate('/inbox');
-        break
-
-
-
-      // for 3PL companies
-
+      // Business Routes
       case 'Track Your Truck':
-        navigate('/track-truck');
-        break
+        navigate('/business/track-truck');
+        break;
 
       case 'Truck Reservation':
-        navigate('/truck-reservation');
-        break
-
-
-
-      //Drivers
-
-      case 'Your Truck':
-        navigate('/your-truck');
+        navigate('/business/truck-reservation');
         break;
 
-      // Post Department / Company pages
+      case 'Fleet Dashboard':
+        // Check context for appropriate fleet dashboard
+        const currentPath = window.location.pathname;
+        if (currentPath.startsWith('/postal/')) {
+          navigate('/postal/fleet-dashboard');
+        } else {
+          navigate('/business/fleet-dashboard');
+        }
+        break;
+
+      case 'GPS Management':
+        navigate('/business/gps-management');
+        break;
+
+      case 'MIS Reports':
+        // Check context for appropriate MIS reports
+        const path = window.location.pathname;
+        if (path.startsWith('/postal/')) {
+          navigate('/postal/mis-reports');
+        } else {
+          navigate('/business/mis-reports');
+        }
+        break;
+
+      // Postal Department Routes
       case 'Company Details':
-        navigate('/company-details');
+        navigate('/postal/company-details');
         break;
 
       case 'Truck Details':
-        navigate('/truck-details');
+        navigate('/postal/truck-details');
         break;
 
       case 'Driver List':
-        navigate('/driver-list');
+        navigate('/postal/driver-list');
+        break;
+
+      case 'Inbox':
+        navigate('/postal/inbox');
+        break;
+
+      case 'Warehouse':
+        navigate('/postal/warehouse');
+        break;
+
+      // Driver Routes
+      case 'Your Truck':
+        navigate('/driver/your-truck');
         break;
 
       case 'Sentiment Analysis':
-        navigate ('/analysis');
+        navigate('/driver/sentiment-analysis');
+        break;
+
+      case 'Driver Details':
+        navigate('/driver/driver-details');
+        break;
+
+      // Legacy routes (for backward compatibility)
+      case 'Truck':
+        navigate('/business/track-truck');
+        break;
+
+      case 'Third Party Logistics':
+        navigate('/business/truck-reservation');
+        break;
+
+      case 'Drivers':
+        navigate('/postal/driver-list');
         break;
 
       default:
+        console.warn(`No route defined for option: ${option}`);
         break;
     }
   };

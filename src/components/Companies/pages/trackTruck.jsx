@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Map from "../../Post Department/utils/map.jsx"
 import TruckLoad from "../../Post Department/utils/loadDetails.jsx"
 import Location from "../../Post Department/utils/loaction.jsx"
@@ -12,6 +13,7 @@ import QR from "../../../assets/QR.svg"
 
 
 function TruckDetails() {
+    const navigate = useNavigate();
 
     const truckData = [
         {
@@ -90,7 +92,7 @@ function TruckDetails() {
                             <div className="w-[70%]">
                                 <div
                                  className="w-full"
-                                 onClick={() => Navigate('/driver-details')}
+                                 onClick={() => navigate('/driver-details')}
                                 >
                                     <DriverCard />
                                 </div>

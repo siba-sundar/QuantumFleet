@@ -123,14 +123,14 @@ const Navbar = () => {
           <div className="space-x-4 hidden lg:flex items-center">
             {/* Sign In Button */}
             <button
-              onClick={() => navigate('/signincard')} // Navigate to SignIn component
+              onClick={() => navigate('/auth/signin')} // Navigate to SignIn component
               className="hidden lg:flex items-center bg-neutralDGrey text-white px-6 py-2 border-2 font-bold rounded-full transition-all duration-300 hover:drop-shadow-lg"
             >
               Sign In
             </button>
             {/* Sign Up Button */}
             <button
-              onClick={() => navigate('/signupcard')} // Navigate to SignUp component
+              onClick={() => navigate('/auth/signup')} // Navigate to SignUp component
               className="bg-white text-brandPrimary px-6 py-2 border-2 border-neutralDGrey rounded-full font-bold transition-all duration-300 hover:text-white hover:bg-neutralDGrey hover:drop-shadow-lg"
             >
               Sign Up

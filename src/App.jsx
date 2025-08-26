@@ -12,25 +12,45 @@ import SignInTD from './components/auth/truckerDrivers/SignInTD';
 import SignUpTD from './components/auth/truckerDrivers/SignUpTD';
 import OtpPageTD from './components/auth/truckerDrivers/OtpPageTD';
 import SignUpDetailsTD from './components/auth/truckerDrivers/SignUpDetailsTD';
+import EditPersonalDetails from './components/auth/truckerDrivers/EditPersonalDetails';
+import DriverProfessionalDetails from './components/auth/truckerDrivers/DriverProfessionalDetails';
 import SignUpDetailsP from './components/auth/postal/SignUpDetailsP';
 import SignUpP from './components/auth/postal/SignUpP';
 import SignInP from './components/auth/postal/SignInP';
 import SignUpDetailsB from './components/auth/business/SignUpDetailsB';
 import SignUpB from './components/auth/business/SignUpB';
 import SignInB from './components/auth/business/SignInB';
+import SignInCard from './components/auth/SignCard/SignInCard';
+import SignUpCard from './components/auth/SignCard/SignUpCard';
+import AuthTopNavLayout from './components/Global/AuthTopNavLayout';
+
+// Business Components
 import TrackTruck from './components/Companies/pages/trackTruck';
 import TruckReservation from './components/Companies/pages/truckReservation';
+
+// Driver Components
 import YourTruck from './components/Drivers/pages/yourTruck';
 import DriverSurveyForm from './components/Drivers/pages/surveryForm';
-import AuthTopNavLayout from './components/Global/AuthTopNavLayout';
+import DriverDetailsUpdated from './components/Drivers/DriverDetailsUpdated';
+
+// Post Department Components
 import CompanyDetails from './components/Post Department/pages/companyDetails';
 import TruckDetails from './components/Post Department/pages/truckDetails';
 import DriverList from './components/Post Department/pages/driverList';
 import InboxPage from './components/Post Department/pages/inboxPage';
 import WareHouse from './components/Post Department/pages/wareHouse';
-import SignInCard from './components/auth/SignCard/SignInCard';
-import SignUpCard from './components/auth/SignCard/SignUpCard';
+
+// GPS Tracking Components
+import DriverTrackingPage from './components/tracking/DriverTrackingPage';
+import FleetDashboard from './components/tracking/FleetDashboard';
+import TrackingManagement from './components/tracking/TrackingManagement';
+
+// MIS Reports
 import MISReport from './components/misReport/misReports';
+
+// Dashboard Entry
+import DashboardEntry from './components/DashboardEntry';
+
 import 'leaflet/dist/leaflet.css';
 import './index.css';
 
@@ -38,6 +58,7 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* Landing Page */}
         <Route 
           path="/" 
           element={
@@ -53,39 +74,72 @@ function App() {
             </>
           } 
         />
+        
+        {/* Authentication Routes */}
+        <Route path="/auth/signin" element={<SignInCard />} />
+        <Route path="/auth/signup" element={<SignUpCard />} />
+        <Route path="/auth/driver/signin" element={<SignInTD />} />
+        <Route path="/auth/driver/signup" element={<SignUpTD />} />
+        <Route path="/auth/driver/otp" element={<OtpPageTD />} />
+        <Route path="/auth/driver/details" element={<SignUpDetailsTD />} />
+        <Route path="/auth/driver/personal-details" element={<EditPersonalDetails />} />
+        <Route path="/auth/driver/professional-details" element={<DriverProfessionalDetails />} />
+        <Route path="/auth/business/signin" element={<SignInB />} />
+        <Route path="/auth/business/signup" element={<SignUpB />} />
+        <Route path="/auth/business/details" element={<SignUpDetailsB />} />
+        <Route path="/auth/postal/signin" element={<SignInP />} />
+        <Route path="/auth/postal/signup" element={<SignUpP />} />
+        <Route path="/auth/postal/details" element={<SignUpDetailsP />} />
+        
+        {/* Dashboard Entry */}
+        <Route path="/dashboard" element={<DashboardEntry />} />
+        
+        {/* Business Dashboard Routes */}
+        <Route element={<AuthTopNavLayout options={["Track Your Truck", "Truck Reservation", "Fleet Dashboard", "GPS Management", "MIS Reports"]} />}>
+          <Route path="/business/track-truck" element={<TrackTruck />} />
+          <Route path="/business/truck-reservation" element={<TruckReservation />} />
+          <Route path="/business/fleet-dashboard" element={<FleetDashboard />} />
+          <Route path="/business/gps-management" element={<TrackingManagement />} />
+          <Route path="/business/mis-reports" element={<MISReport />} />
+        </Route>
+        
+        {/* Postal Department Routes */}
+        <Route element={<AuthTopNavLayout options={["Company Details", "Truck Details", "Driver List", "Inbox", "Warehouse", "Fleet Dashboard", "MIS Reports"]} />}>
+          <Route path="/postal/company-details" element={<CompanyDetails />} />
+          <Route path="/postal/truck-details" element={<TruckDetails />} />
+          <Route path="/postal/driver-list" element={<DriverList />} />
+          <Route path="/postal/inbox" element={<InboxPage />} />
+          <Route path="/postal/warehouse" element={<WareHouse />} />
+          <Route path="/postal/fleet-dashboard" element={<FleetDashboard />} />
+          <Route path="/postal/mis-reports" element={<MISReport />} />
+        </Route>
+        
+        {/* Driver Dashboard Routes */}
+        <Route element={<AuthTopNavLayout options={["Your Truck", "Sentiment Analysis", "Driver Details"]} />}>
+          <Route path="/driver/your-truck" element={<YourTruck />} />
+          <Route path="/driver/sentiment-analysis" element={<DriverSurveyForm />} />
+          <Route path="/driver/driver-details" element={<DriverDetailsUpdated />} />
+        </Route>
+        
+        {/* Public GPS Tracking */}
+        <Route path="/track/:sessionId" element={<DriverTrackingPage />} />
+        
+        {/* Legacy route redirects for backward compatibility */}
         <Route path="/signincard" element={<SignInCard />} />
         <Route path="/signupcard" element={<SignUpCard />} />
         <Route path="/signintd" element={<SignInTD />} />
         <Route path="/signuptd" element={<SignUpTD />} />
         <Route path="/otppagetd" element={<OtpPageTD />} />
         <Route path="/signupdetailstd" element={<SignUpDetailsTD />} />
-        <Route path="/signupp" element={<SignUpP/>} />
-        <Route path="/signinp" element={<SignInP />} />
-        <Route path="/signupdetailsp" element={<SignUpDetailsP />} />
-        <Route path="/signupb" element={<SignUpB />} />
         <Route path="/signinb" element={<SignInB />} />
-        {/* Business/company authenticated area - shows TopNav above pages */}
-        <Route element={<AuthTopNavLayout options={["Track Your Truck","Truck Reservation"]} />}>
-          <Route path="/track-truck" element={<TrackTruck />} />
-          <Route path="/truck-reservation" element={<TruckReservation />} />
-        </Route>
-
-        {/* Postal department authenticated area */}
-        <Route element={<AuthTopNavLayout options={["Company Details","Truck Details","Driver List","Inbox","Warehouse"]} />}>
-          <Route path="/company-details" element={<CompanyDetails />} />
-          <Route path="/truck-details" element={<TruckDetails />} />
-          <Route path="/driver-list" element={<DriverList />} />
-          <Route path="/inbox" element={<InboxPage />} />
-          <Route path="/warehouse" element={<WareHouse />} />
-        </Route>
-
-        {/* Driver authenticated area - shows TopNav above pages */}
-        <Route element={<AuthTopNavLayout options={["Your Truck","Sentiment Analysis"]} />}>
-          <Route path="/your-truck" element={<YourTruck />} />
-          <Route path="/analysis" element={<DriverSurveyForm />} />
-        </Route>
+        <Route path="/signupb" element={<SignUpB />} />
         <Route path="/signupdetailsb" element={<SignUpDetailsB />} />
-        <Route path="/misreports" element={<MISReport />} />
+        <Route path="/signinp" element={<SignInP />} />
+        <Route path="/signupp" element={<SignUpP />} />
+        <Route path="/signupdetailsp" element={<SignUpDetailsP />} />
+        <Route path="/your-truck" element={<YourTruck />} />
+        <Route path="/analysis" element={<DriverSurveyForm />} />
+        <Route path="/driver-details" element={<DriverDetailsUpdated />} />
       </Routes>
     </Router>
   );
