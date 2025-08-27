@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
-import Logo from "../../../assets/logo1.svg"
+import { useNavigate } from 'react-router-dom';
+import Logo from "../../../assets/logo1.svg";
+import { submitSentimentSurvey } from '../../../utils/api.js';
+import { useAuth } from '../../../hooks/useAuth.jsx';
 
 const DriverSurveyForm = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     driverID: '',
     jobSatisfaction: '',
@@ -12,6 +17,10 @@ const DriverSurveyForm = () => {
     salarySatisfaction: '',
     workConditions: ''
   });
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitResult, setSubmitResult] = useState(null);
+  const [error, setError] = useState('');
 
   const handleChange = (e) => {
     setFormData({
@@ -20,9 +29,81 @@ const DriverSurveyForm = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log(formData);
+    setError('');
+    setSubmitResult(null);
+    
+    // Validation
+    const requiredFields = ['jobSatisfaction', 'relationshipWithManagement', 'workHours', 
+                           'mentalHealth', 'physicalHealth', 'salarySatisfaction', 'workConditions'];
+    
+    const missingFields = requiredFields.filter(field => !formData[field]);
+    
+    if (missingFields.length > 0) {
+      setError('Please fill in all required fields');
+      return;
+    }
+    
+    if (!user?.uid && !formData.driverID) {
+      setError('Driver ID is required. Please enter your Driver ID.');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Use authenticated user ID or manual driver ID
+      const driverId = user?.uid || formData.driverID;
+      
+      const surveyPayload = {
+        driverId,
+        surveyData: {
+          driverID: formData.driverID || driverId,
+          jobSatisfaction: formData.jobSatisfaction,
+          relationshipWithManagement: formData.relationshipWithManagement,
+          workHours: formData.workHours,
+          mentalHealth: formData.mentalHealth,
+          physicalHealth: formData.physicalHealth,
+          salarySatisfaction: formData.salarySatisfaction,
+          workConditions: formData.workConditions
+        }
+      };
+      
+      console.log('Submitting survey:', surveyPayload);
+      
+      const result = await submitSentimentSurvey(surveyPayload);
+      
+      setSubmitResult(result);
+      
+      // Reset form after successful submission
+      setFormData({
+        driverID: '',
+        jobSatisfaction: '',
+        relationshipWithManagement: '',
+        workHours: '',
+        mentalHealth: '',
+        physicalHealth: '',
+        salarySatisfaction: '',
+        workConditions: ''
+      });
+      
+      // Show success message briefly then redirect to driver details
+      setTimeout(() => {
+        navigate('/driver/driver-details', { 
+          state: { 
+            sentimentData: result.analysis,
+            message: 'Sentiment analysis completed successfully!' 
+          }
+        });
+      }, 3000); // Wait 3 seconds to show the analysis result
+      
+    } catch (error) {
+      console.error('Error submitting survey:', error);
+      setError(error.message || 'Failed to submit survey. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -34,6 +115,63 @@ const DriverSurveyForm = () => {
         className="w-32 mb-8 mx-auto"
       />
 
+      {/* Success Message */}
+      {submitResult && (
+        <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+          <h2 className="text-lg font-bold text-green-800 mb-2">Survey Submitted Successfully!</h2>
+          <p className="text-sm text-green-700 mb-3">Redirecting to your dashboard in 3 seconds...</p>
+          {submitResult.analysis && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-green-700">Your Sentiment Score:</span>
+                <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                  submitResult.analysis.sentimentScore >= 80 ? 'bg-green-500 text-white' :
+                  submitResult.analysis.sentimentScore >= 60 ? 'bg-blue-500 text-white' :
+                  submitResult.analysis.sentimentScore >= 40 ? 'bg-yellow-500 text-white' :
+                  submitResult.analysis.sentimentScore >= 20 ? 'bg-orange-500 text-white' :
+                  'bg-red-500 text-white'
+                }`}>
+                  {submitResult.analysis.sentimentScore}/100 - {submitResult.analysis.sentimentLabel}
+                </span>
+              </div>
+              <p className="text-sm text-green-700">
+                <strong>Analysis:</strong> {submitResult.analysis.analysis}
+              </p>
+              {submitResult.analysis.recommendations && submitResult.analysis.recommendations.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-green-700 mb-1">Recommendations:</p>
+                  <ul className="list-disc list-inside text-sm text-green-600 space-y-1">
+                    {submitResult.analysis.recommendations.map((rec, index) => (
+                      <li key={index}>{rec}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="mt-4">
+                <button
+                  onClick={() => navigate('/driver/driver-details', { 
+                    state: { 
+                      sentimentData: submitResult.analysis,
+                      message: 'Sentiment analysis completed successfully!' 
+                    }
+                  })}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                >
+                  Go to Dashboard Now
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Error Message */}
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-700 font-medium">{error}</p>
+        </div>
+      )}
+      
       {/* Form Header */}
       <h1 className="text-2xl font-bold text-center mb-8">Driver Sentiment Survey</h1>
 
@@ -41,17 +179,22 @@ const DriverSurveyForm = () => {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Driver ID */}
         <div className="space-y-2">
-          <label htmlFor="driverID" className="block text-lg font-bold">What is your Driver ID?</label>
+          <label htmlFor="driverID" className="block text-lg font-bold">
+            What is your Driver ID? {!user?.uid && <span className="text-red-500">*</span>}
+          </label>
           <input
             type="text"
-
             id="driverID"
             name="driverID"
             value={formData.driverID}
             onChange={handleChange}
-            placeholder="Enter your Driver ID"
+            placeholder={user?.uid ? `Logged in as: ${user.uid}` : "Enter your Driver ID"}
             className="w-full p-3 border border-black rounded-full focus:outline-none focus:ring-2 focus:ring-blue-600"
+            disabled={Boolean(user?.uid)}
           />
+          {user?.uid && (
+            <p className="text-sm text-gray-600">Using authenticated driver ID: {user.uid}</p>
+          )}
         </div>
 
         {/* Job Satisfaction */}
@@ -141,9 +284,21 @@ const DriverSurveyForm = () => {
         <div className='flex items-center justify-center'>
           <button
             type="submit"
-            className="w-2/4 py-3 bg-black text-white  font-bold rounded-full hover:bg-green-600 transition duration-300"
+            disabled={isSubmitting}
+            className={`w-2/4 py-3 font-bold rounded-full transition duration-300 ${
+              isSubmitting 
+                ? 'bg-gray-400 text-white cursor-not-allowed'
+                : 'bg-black text-white hover:bg-green-600'
+            }`}
           >
-            Submit
+            {isSubmitting ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                Analyzing...
+              </div>
+            ) : (
+              'Submit Survey'
+            )}
           </button>
         </div>
       </form>

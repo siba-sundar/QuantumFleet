@@ -1,46 +1,40 @@
 {
-  "name": "client",
+  "name": "indifleet-backend",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
+  "description": "IndiFleet Backend API Server",
+  "main": "api.js",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "start": "node api.js",
+    "dev": "node --watch api.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "@dataconnect/generated": "file:dataconnect-generated/js/example-connector",
+    "@google/generative-ai": "^0.24.1",
     "@googlemaps/google-maps-services-js": "^3.4.2",
-    "@thirdweb-dev/react": "^4.9.4",
-    "@thirdweb-dev/sdk": "^4.0.99",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
-    "ethers": "^5.7.2",
     "express": "^4.21.2",
     "express-rate-limit": "^8.0.1",
     "express-validator": "^7.2.1",
     "firebase": "^12.1.0",
+    "firebase-admin": "^12.1.0",
     "jsonwebtoken": "^9.0.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.2",
     "socket.io": "^4.8.1",
     "twilio": "^5.8.0",
-    "web3": "^4.12.1"
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^8.57.0",
-    "eslint-plugin-react": "^7.34.3",
-    "eslint-plugin-react-hooks": "^4.6.2",
-    "eslint-plugin-react-refresh": "^0.4.7",
-    "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.11",
-    "vite": "^5.3.4"
-  }
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "logistics",
+    "fleet-management",
+    "gps-tracking",
+    "api"
+  ],
+  "author": "IndiFleet Team",
+  "license": "MIT"
 }

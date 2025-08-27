@@ -413,6 +413,29 @@ class WebSocketService {
     });
   }
 
+  // Broadcast sentiment analysis updates
+  broadcastSentimentUpdate(driverId, sentimentData) {
+    // Broadcast to all fleet managers
+    this.io.to('fleet_managers').emit('sentiment_update', {
+      driverId,
+      sentimentScore: sentimentData.sentimentScore,
+      sentimentLabel: sentimentData.sentimentLabel,
+      timestamp: sentimentData.timestamp || new Date().toISOString()
+    });
+
+    // Broadcast to specific driver
+    this.io.to(`driver_${driverId}`).emit('personal_sentiment_update', {
+      driverId,
+      sentimentScore: sentimentData.sentimentScore,
+      sentimentLabel: sentimentData.sentimentLabel,
+      analysis: sentimentData.analysis,
+      recommendations: sentimentData.recommendations,
+      timestamp: sentimentData.timestamp || new Date().toISOString()
+    });
+
+    console.log(`Broadcasted sentiment update for driver ${driverId}: ${sentimentData.sentimentScore}`);
+  }
+
   // Utility methods
 
   getConnectedClients() {
@@ -454,6 +477,16 @@ class WebSocketService {
   // Send message to all fleet managers
   broadcastToFleetManagers(event, data) {
     this.io.to('fleet_managers').emit(event, data);
+  }
+
+  // Send message to all connected clients
+  broadcast(event, data) {
+    this.io.emit(event, data);
+  }
+
+  // Send message to a specific room
+  broadcastToRoom(room, event, data) {
+    this.io.to(room).emit(event, data);
   }
 }
 

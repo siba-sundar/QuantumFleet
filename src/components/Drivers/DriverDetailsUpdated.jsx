@@ -4,9 +4,11 @@ import { User, Activity, Heart, Brain, AlertTriangle, Edit, Plus } from 'lucide-
 import { useAuth } from '../../hooks/useAuth.jsx';
 import { useDrivers } from '../../hooks/useFirestore.js';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { fetchDriverSentiment } from '../../utils/api.js';
 
 const DriverDetailsUpdated = () => {
   const [driverData, setDriverData] = useState(null);
+  const [sentimentData, setSentimentData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -25,6 +27,17 @@ const DriverDetailsUpdated = () => {
       }, 5000);
       return () => clearTimeout(timer);
     }
+    
+    // Check for sentiment data from survey completion
+    if (location.state?.sentimentData) {
+      setSentimentData({
+        hasSentimentData: true,
+        currentScore: location.state.sentimentData.sentimentScore,
+        currentLabel: location.state.sentimentData.sentimentLabel,
+        analysis: location.state.sentimentData.analysis,
+        lastUpdated: new Date().toISOString()
+      });
+    }
   }, [location.state]);
 
   useEffect(() => {
@@ -36,11 +49,28 @@ const DriverDetailsUpdated = () => {
       }
 
       try {
+        // Fetch driver profile data
         const result = await findByUserId(user.uid);
         if (result.success && result.data) {
           setDriverData(result.data);
         } else {
           setError('Driver profile not found');
+        }
+        
+        // Fetch sentiment data if not already loaded from location state
+        if (!location.state?.sentimentData) {
+          try {
+            console.log('Fetching sentiment data for driver:', user.uid);
+            const sentimentResult = await fetchDriverSentiment(user.uid);
+            console.log('Sentiment data received:', sentimentResult);
+            setSentimentData(sentimentResult);
+          } catch (sentimentError) {
+            console.warn('No sentiment data available:', sentimentError.message);
+            setSentimentData({
+              hasSentimentData: false,
+              message: 'No sentiment data available. Take a survey to get started!'
+            });
+          }
         }
       } catch (err) {
         console.error('Error fetching driver data:', err);
@@ -51,7 +81,7 @@ const DriverDetailsUpdated = () => {
     };
 
     fetchDriverData();
-  }, [user?.uid, findByUserId]);
+  }, [user?.uid, findByUserId, location.state?.sentimentData]);
 
   const colorCodes = {
     excellent: "bg-green-500",
@@ -71,6 +101,25 @@ const DriverDetailsUpdated = () => {
     if (hasPersonal && hasLicense) return 'good';
     if (hasPersonal) return 'satisfactory';
     return 'concern';
+  };
+  
+  // Helper function to get sentiment status and color
+  const getSentimentStatus = () => {
+    if (!sentimentData?.hasSentimentData) {
+      return {
+        status: 'No Data',
+        color: 'bg-gray-100',
+        iconColor: 'text-gray-600',
+        score: 'N/A'
+      };
+    }
+    
+    const score = sentimentData.currentScore;
+    if (score >= 81) return { status: 'Excellent', color: 'bg-green-100', iconColor: 'text-green-600', score };
+    if (score >= 61) return { status: 'Good', color: 'bg-blue-100', iconColor: 'text-blue-600', score };
+    if (score >= 41) return { status: 'Fair', color: 'bg-yellow-100', iconColor: 'text-yellow-600', score };
+    if (score >= 21) return { status: 'Poor', color: 'bg-orange-100', iconColor: 'text-orange-600', score };
+    return { status: 'Critical', color: 'bg-red-100', iconColor: 'text-red-600', score };
   };
 
   const handleEditProfessionalInfo = () => {
@@ -271,25 +320,77 @@ const DriverDetailsUpdated = () => {
             </div>
 
             <div className="text-center">
-              <div className="bg-yellow-100 rounded-full p-4 w-16 h-16 mx-auto mb-3 flex items-center justify-center">
-                <Brain className="h-8 w-8 text-yellow-600" />
+              <div className={`${getSentimentStatus().color} rounded-full p-4 w-16 h-16 mx-auto mb-3 flex items-center justify-center`}>
+                <Brain className={`h-8 w-8 ${getSentimentStatus().iconColor}`} />
               </div>
               <h3 className="font-semibold text-gray-900">Sentiment Score</h3>
-              <p className="text-gray-600">N/A</p>
+              <div className="space-y-1">
+                <p className="text-gray-900 font-bold text-lg">{getSentimentStatus().score}</p>
+                <p className="text-gray-600 text-sm">{getSentimentStatus().status}</p>
+                {sentimentData?.lastUpdated && (
+                  <p className="text-gray-400 text-xs">
+                    Updated: {new Date(sentimentData.lastUpdated).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+              {!sentimentData?.hasSentimentData && (
+                <div className="mt-2">
+                  <button 
+                    onClick={() => navigate('/driver/sentiment-analysis')}
+                    className="text-xs text-blue-600 underline hover:text-blue-800"
+                  >
+                    Take Survey Now
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="mt-8 text-center">
-            <p className="text-gray-600 mb-4">
-              Complete your professional details to unlock advanced analytics and performance tracking.
-            </p>
-            {!driverData?.professionalInfo?.employeeId && (
-              <button 
-                onClick={handleEditProfessionalInfo}
-                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                Complete Professional Profile
-              </button>
+            {sentimentData?.hasSentimentData ? (
+              <div className="space-y-4">
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <p className="text-green-800 font-medium mb-2">
+                    Latest Sentiment Analysis Complete
+                  </p>
+                  <p className="text-green-600 text-sm">
+                    Score: {sentimentData.currentScore}/100 ({sentimentData.currentLabel})
+                  </p>
+                  {sentimentData.analysis && (
+                    <p className="text-green-600 text-sm mt-1">
+                      {sentimentData.analysis}
+                    </p>
+                  )}
+                </div>
+                <button 
+                  onClick={() => navigate('/driver/sentiment-analysis')}
+                  className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Retake Survey
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-gray-600 mb-4">
+                  Complete your professional details and sentiment analysis to unlock advanced analytics and performance tracking.
+                </p>
+                <div className="flex gap-4 justify-center">
+                  {!driverData?.professionalInfo?.employeeId && (
+                    <button 
+                      onClick={handleEditProfessionalInfo}
+                      className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    >
+                      Complete Professional Profile
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => navigate('/driver/sentiment-analysis')}
+                    className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                  >
+                    Take Sentiment Survey
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

@@ -113,14 +113,7 @@ const DriverProfessionalDetails = () => {
       if (result.success) {
         // For new users, navigate to dashboard with completion status
         // For existing users updating their profile, just navigate normally
-        navigate('/driver/your-truck', {
-          state: {
-            phone: phone || user?.phoneNumber,
-            profileCompleted: true,
-            isNewUser: isNewUser || false,
-            autoSignedIn: isNewUser || false
-          }
-        });
+        navigate('/driver/your-truck');
       } else {
         setError(result.error || 'Failed to save professional details. Please try again.');
       }
@@ -134,12 +127,7 @@ const DriverProfessionalDetails = () => {
 
   const handleSkip = () => {
     // Allow users to skip for now and complete later
-    navigate('/driver/your-truck', {
-      state: {
-        phone: phone || user?.phoneNumber,
-        skippedProfessionalDetails: true
-      }
-    });
+    navigate('/driver/your-truck');
   };
 
   return (

@@ -82,14 +82,7 @@ const OtpPageTD = () => {
           if (profileResult.success && profileResult.data?.professionalInfo?.employeeId) {
             // Professional details exist, go to dashboard
             const targetRoute = next || '/driver/your-truck';
-            navigate(targetRoute, { 
-              state: { 
-                phone: phone,
-                isNewUser: result.isNewUser,
-                registrationMethod: 'phone',
-                userId: result.user?.uid
-              }
-            });
+            navigate(targetRoute); // Removed state to fix navigation issues
           } else {
             // Professional details missing, redirect to professional details form
             navigate('/auth/driver/professional-details', {
@@ -223,7 +216,7 @@ const OtpPageTD = () => {
           <div className="text-center">
             <button
               type="button"
-              onClick={() => navigate('/signuptd')}
+              onClick={() => navigate('/auth/driver/signup')}
               className="text-sm text-gray-600 hover:text-gray-800"
               disabled={isVerifying}
             >

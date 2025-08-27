@@ -53,7 +53,7 @@ const SignInTD = () => {
         
         if (result.success) {
           // Navigate to OTP page with confirmation result and phone number
-          navigate('/otppagetd', { 
+          navigate('/auth/driver/otp', { 
             state: { 
               phone: result.phoneNumber || phone,
               confirmationResult: result.confirmationResult,
@@ -226,7 +226,7 @@ const SignInTD = () => {
             <button
               type="button"
               className="font-semibold text-blue-600 hover:text-blue-800"
-              onClick={() => navigate('/signuptd')}
+              onClick={() => navigate('/auth/driver/signup')}
               disabled={isLoading || loading}
             >
               Register Here
