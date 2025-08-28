@@ -17,6 +17,7 @@
     "axios": "^1.11.0",
     "chart.js": "^4.1.1",
     "chartjs-gauge": "^0.3.0",
+    "dotenv": "^17.2.1",
     "firebase": "^12.1.0",
     "flowbite-react": "^0.10.1",
     "leaflet": "^1.9.4",

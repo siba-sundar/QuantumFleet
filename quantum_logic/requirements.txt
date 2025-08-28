@@ -1,0 +1,7 @@
+cirq
+numpy
+pandas
+matplotlib
+fastapi
+uvicorn[standard]
+networkx

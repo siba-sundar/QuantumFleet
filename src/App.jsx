@@ -54,6 +54,9 @@ import DriverTrackingPage from './components/tracking/DriverTrackingPage';
 // Dashboard Entry
 import DashboardEntry from './components/DashboardEntry';
 
+// quantum analysis
+import QuantumComponent from "./components/Global/Quantum_routes"
+
 import 'leaflet/dist/leaflet.css';
 import './index.css';
 
@@ -117,6 +120,25 @@ function App() {
           <Route path="warehouse" element={<WareHouse />} />
           <Route path="fleet-dashboard" element={<FleetDashboard />} />
           <Route path="mis-reports" element={<MISReport />} />
+        </Route>
+        <Route element={<AuthTopNavLayout options={["Track Your Truck", "Truck Reservation", "Fleet Dashboard", "GPS Management", "MIS Reports"]} />}>
+          <Route path="/business/track-truck" element={<TrackTruck />} />
+          <Route path="/business/truck-reservation" element={<TruckReservation />} />
+          <Route path="/business/fleet-dashboard" element={<FleetDashboard />} />
+          <Route path="/business/gps-management" element={<TrackingManagement />} />
+          <Route path="/business/mis-reports" element={<MISReport />} />
+        </Route>
+        
+        {/* Postal Department Routes */}
+        <Route element={<AuthTopNavLayout options={["Company Details", "Truck Details", "Driver List", "Inbox", "Warehouse", "Fleet Dashboard", "MIS Reports"]} />}>
+          <Route path="/postal/company-details" element={<CompanyDetails />} />
+          <Route path="/postal/truck-details" element={<TruckDetails />} />
+          <Route path="/postal/driver-list" element={<DriverList />} />
+          <Route path="/postal/inbox" element={<InboxPage />} />
+          <Route path="/postal/warehouse" element={<WareHouse />} />
+          <Route path="/postal/fleet-dashboard" element={<FleetDashboard />} />
+          <Route path="/postal/mis-reports" element={<MISReport />} />
+          <Route path="/postal/quantum-route" element={<QuantumComponent/>}/>
         </Route>
         
         {/* Driver Dashboard Routes */}
