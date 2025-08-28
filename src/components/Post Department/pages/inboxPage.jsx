@@ -1,8 +1,8 @@
 import SideBar from "../../Global/sideBar.jsx"
-import Content from "../utils/inboxContent.jsx"
+import InboxContent from "../utils/inboxContent.jsx"
 import { useState } from "react"
 
-function DriverPage () {
+function InboxPage () {
 
     const drivers = [
         {
@@ -33,23 +33,16 @@ function DriverPage () {
         }
     ];
 
-
-
-
-
     const [selectedDriverId, setSelectedDriverId] = useState(drivers[0]?.id)
 
     return (
         <>
         <div className="grid grid-cols-[20%_80%]">
             <SideBar trucks={drivers} selectedId={selectedDriverId} onSelect={setSelectedDriverId} />
-            <Content selectedDriverId={selectedDriverId} />
+            <InboxContent selectedDriverId={selectedDriverId} />
         </div>
         </>
     )
 }
 
-
-
-
-export default DriverPage
+export default InboxPage

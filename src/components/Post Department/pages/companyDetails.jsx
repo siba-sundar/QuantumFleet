@@ -1,18 +1,12 @@
 import Map from "../utils/map.jsx"
 import TruckLoad from "../utils/loadDetails.jsx"
-
 import Graph from "../utils/graphComp.jsx"
-
 import SideBar from "../../Global/sideBar.jsx"
 import { useState } from "react"
 import DeliveryStatus from "../utils/deliverStatus.jsx"
 import CompanyCard from "../utils/companyCard.jsx"
 import TruckList from "../utils/truckList.jsx"
 import CompanyHistory from "../utils/companyHistory.jsx"
-
-
-
-
 
 function CompanyDetails() {
 
@@ -26,7 +20,6 @@ function CompanyDetails() {
         yearsInOperation: 25,
     };
 
-
     const truckLoadPercentage = 80;
     const truckDetails = {
         number: 'MH12 AB1234',
@@ -36,7 +29,6 @@ function CompanyDetails() {
         maintenance: "12-Dec-03", // Current load in kg
     };
 
-
     const sampleCheckpoints = [
         { name: 'Checkpoint 1', position: '5%' },
         { name: 'Checkpoint 2', position: '25%' },
@@ -44,8 +36,6 @@ function CompanyDetails() {
         { name: 'Checkpoint 4', position: '65%' },
         { name: 'Checkpoint 5', position: '85%' },
     ];
-
-
 
     const dates = [
         { x: new Date('2024-01-01').getTime(), y: 1000000 },
@@ -63,7 +53,7 @@ function CompanyDetails() {
         dropOffLocation: '456 Elm St, Shelbyville'
     }
 
-
+    // Companies/Businesses data
     const companies = [
         {
             id: 1,
@@ -98,11 +88,8 @@ function CompanyDetails() {
     const [selectedCompanyId, setSelectedCompanyId] = useState(companies[0]?.id);
     const selectedCompany = companies.find(c => c.id === selectedCompanyId) || companies[0];
 
-
-
     const trucks = [
         { id: 4, number: 'RJ10C7890', driver: 'Suresh Mehta', status: 'Delivered', image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS2lQnH22TeMP8lVoZ8RIvXmV0pnQJ9PtfEXw&usqp=CAU" },
-
     ];
 
     const orders =[
@@ -152,19 +139,20 @@ function CompanyDetails() {
           "status": "Successfully Delivered"
         }
       ];
-      
-
 
     return (
         <>
-
             <div className='grid grid-cols-[20%_80%]'>
                 <SideBar trucks={companies} selectedId={selectedCompanyId} onSelect={setSelectedCompanyId} />
 
                 <div className=" flex">
                     <div className=" gap-4">
+                        <div className="bg-white p-4 rounded-lg shadow mb-4">
+                            <h2 className="text-xl font-bold text-gray-800 mb-2">Super Admin Dashboard</h2>
+                            <p className="text-gray-600">Manage companies, trucks, and drivers across the fleet</p>
+                        </div>
+                        
                         <DeliveryStatus currentStage="shipped" orderDetails={orderDetails} />
-
 
                         <div className="w-[80%] flex">
                             <div className="w-[80%]">
@@ -177,36 +165,25 @@ function CompanyDetails() {
                                 </div>
                             </div>
 
-                                <div className="ml-8 mt-4 h-full w-[20%]">
+                            <div className="ml-8 mt-4 h-full w-[20%]">
                                 <TruckList trucks={trucks} selectedCompany={selectedCompany} />
                             </div>
-
                         </div>
                     </div>
 
                     <div>
-
-
                         <div>
                             <TruckLoad loadPercentage={truckLoadPercentage} truckDetails={truckDetails} />
                         </div>
 
-
-
                         <div>
                             <CompanyHistory orders={orders}/>
                         </div>
-
-
                     </div>
-
                 </div>
-
             </div>
         </>
     )
 }
-
-
 
 export default CompanyDetails

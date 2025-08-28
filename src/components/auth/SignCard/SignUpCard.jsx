@@ -54,7 +54,7 @@ const SignUpCard = () => {
             >
               <img src={Image2} alt="Logo" className="w-16 h-16 mr-6" />
               <div>
-                <h3 className="text-lg font-semibold">Postal Department</h3>
+                <h3 className="text-lg font-semibold">Super Admin Portal</h3>
               </div>
             </div>
             <div className="flex gap-2 text-center justify-center ">

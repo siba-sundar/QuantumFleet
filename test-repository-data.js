@@ -67,7 +67,7 @@ async function testRepositoryDataSaving() {
     const postalProfile = await postalRepo.create({
       uid: 'postal_test_' + Date.now(),
       email: 'testpostal@indifleet.com',
-      departmentName: 'Test Postal Department',
+      departmentName: 'Test Super Admin Portal',
       firstName: 'Jane',
       lastName: 'Postal',
       phoneNumber: '+919876543230',

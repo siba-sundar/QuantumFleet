@@ -115,119 +115,17 @@ const warehouseLogs = [
 ]
 
 export default function WarehouseDashboard() {
-  const [selectedWarehouse, setSelectedWarehouse] = useState(null)
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-500'
-      case 'full':
-        return 'bg-orange-500'
-      case 'maintenance':
-        return 'bg-yellow-500'
-      default:
-        return 'bg-red-500'
-    }
-  }
-
-  const getEventTypeIcon = (eventType) => {
-    switch (eventType) {
-      case 'Shipment Received':
-      case 'Shipment Dispatched':
-        return <Package className="h-4 w-4" />
-      case 'Inventory Audit':
-        return <CheckCircle className="h-4 w-4" />
-      case 'System Alert':
-        return <AlertCircle className="h-4 w-4" />
-      default:
-        return <Clock className="h-4 w-4" />
-    }
-  }
-
   return (
-    <div className="flex h-screen">
-      {/* Sidebar */}
-      <div className="w-1/5 bg-gray-100 border-r p-4">
-        <h2 className="text-xl font-bold mb-4">Warehouses</h2>
-        <div className="overflow-auto h-[calc(100vh-8rem)]">
-          {warehouses.map((warehouse) => (
-            <button
-              key={warehouse.id}
-              className={`w-full text-left mb-2 p-2 rounded border border-gray-300 ${selectedWarehouse?.id === warehouse.id ? "bg-blue-100" : "bg-gray-50 hover:bg-gray-200"}`}
-              onClick={() => setSelectedWarehouse(warehouse)}
-            >
-              {warehouse.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Main content */}
-      <div className="w-4/5 p-4 overflow-auto">
-        <h1 className="text-2xl font-bold mb-4">Warehouse Dashboard</h1>
-
-        {selectedWarehouse ? (
-          <>
-            {/* Warehouse Details */}
-            <div className=" text-white p-4 rounded-lg bg-[#020073] shadow mb-4">
-              <h2 className="text-xl font-semibold mb-2">{selectedWarehouse.name}</h2>
-              <p className=" mb-2">{selectedWarehouse.location}</p>
-              <div className="flex items-center mb-2">
-                <span className="text-sm font-medium">Capacity:</span>
-                <div className="bg-gray-200 w-full h-2 mx-2 rounded">
-                  <div className={`h-2 rounded ${getStatusColor(selectedWarehouse.status)}`} style={{ width: `${selectedWarehouse.capacity}%` }}></div>
-                </div>
-                <span className="text-sm">{selectedWarehouse.capacity}%</span>
-              </div>
-              <p className="text-sm mb-2">Type: {selectedWarehouse.type}</p>
-              <p className="text-sm mb-2">Contact: {selectedWarehouse.contact}</p>
-              <div className="flex justify-between items-center">
-                <span className={`badge ${getStatusColor(selectedWarehouse.status)}`}>{selectedWarehouse.status}</span>
-                <span className="text-sm ">Last activity: {new Date(selectedWarehouse.lastActivity).toLocaleString()}</span>
-              </div>
-              {selectedWarehouse.alerts && <div className="text-red-500">Alert: Check system issues!</div>}
-            </div>
-
-            {/* Warehouse Logs */}
-            <div className="bg-white p-4 rounded-lg shadow">
-              <h2 className="text-xl font-semibold mb-2">Warehouse Logs</h2>
-              <table className="table-auto w-full text-left">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="p-2">Date & Time</th>
-                    <th className="p-2">Event Type</th>
-                    <th className="p-2">Description</th>
-                    <th className="p-2">Inventory Change</th>
-                    <th className="p-2">Responsible Person</th>
-                    <th className="p-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {warehouseLogs
-                    .filter(log => log.warehouseId === selectedWarehouse.id)
-                    .map(log => (
-                      <tr key={log.id} className="border-t">
-                        <td className="p-2">{new Date(log.date).toLocaleString()}</td>
-                        <td className="p-2 flex items-center gap-2">
-                          {getEventTypeIcon(log.eventType)}
-                          {log.eventType}
-                        </td>
-                        <td className="p-2">{log.description}</td>
-                        <td className="p-2">{log.inventoryChange}</td>
-                        <td className="p-2">{log.responsiblePerson}</td>
-                        <td className="p-2">
-                          <span className={`badge ${log.status === 'success' ? 'bg-green-200' : 'bg-red-200'}`}>{log.status}</span>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : (
-          <p className="text-center text-gray-500">Select a warehouse to view details and logs.</p>
-        )}
+    <div className="flex items-center justify-center h-screen bg-gray-100">
+      <div className="text-center p-8 bg-white rounded-lg shadow-lg">
+        <h1 className="text-2xl font-bold text-gray-800 mb-4">Feature Not Available</h1>
+        <p className="text-gray-600 mb-6">
+          The warehouse management feature has been deprecated in the Super Admin portal.
+        </p>
+        <p className="text-gray-500">
+          Please use the dedicated warehouse management system for these operations.
+        </p>
       </div>
     </div>
-  )
+  );
 }

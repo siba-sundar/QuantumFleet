@@ -35,10 +35,6 @@ function DriverPage () {
         }
     ];
 
-
-
-
-
     const [selectedDriverId, setSelectedDriverId] = useState(drivers[0]?.id)
     const selectedDriver = drivers.find(d => d.id === selectedDriverId) || drivers[0]
 
@@ -46,13 +42,16 @@ function DriverPage () {
         <>
         <div className="grid grid-cols-[20%_80%]">
             <SideBar trucks={drivers} selectedId={selectedDriverId} onSelect={setSelectedDriverId} />
-            <DriverDetailsUpdated />
+            <div className="p-4">
+                <div className="bg-white p-4 rounded-lg shadow mb-4">
+                    <h2 className="text-xl font-bold text-gray-800 mb-2">Driver Management</h2>
+                    <p className="text-gray-600">Manage and oversee all drivers in the fleet</p>
+                </div>
+                <DriverDetailsUpdated />
+            </div>
         </div>
         </>
     )
 }
-
-
-
 
 export default DriverPage

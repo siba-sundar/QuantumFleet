@@ -507,15 +507,15 @@ const SignUpDetailsB = () => {
             </div>
           </div>
 
-          {/* Enter Your Postal Office Branch Name */}
+          {/* Enter Your Super Admin Portal Branch Name */}
           <div className="mb-8">
-            <h3 className="font-semibold text-lg">Enter Your Postal Office Branch Name *</h3>
+            <h3 className="font-semibold text-lg">Enter Your Super Admin Portal Branch Name *</h3>
             <div className="grid grid-cols-1 gap-4 mb-4">
               <input 
                 type="text" 
                 name="postalBranchName"
                 className="px-4 py-2 border rounded-lg" 
-                placeholder="Enter postal office branch name"
+                placeholder="Enter super admin portal branch name"
                 value={formData.postalBranchName}
                 onChange={handleInputChange}
                 disabled={isSubmitting}

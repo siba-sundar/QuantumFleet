@@ -15,7 +15,7 @@ const PostalRouteGuard = ({ children }) => {
     return <Navigate to="/auth/postal/signin" replace />;
   }
   
-  // If user is not a postal user, redirect to their portal
+  // If user is not a postal user (super admin), redirect to their portal
   if (user.userType !== 'postal') {
     switch (user.userType) {
       case 'driver':

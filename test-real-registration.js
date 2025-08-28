@@ -34,7 +34,7 @@ async function testRealUserRegistration() {
       {
         firstName: 'Jane',
         lastName: 'Postal',
-        departmentName: 'Test Postal Department',
+        departmentName: 'Test Super Admin Portal',
         phoneNumber: '+919876543211',
         address: 'Test Postal Address'
       }

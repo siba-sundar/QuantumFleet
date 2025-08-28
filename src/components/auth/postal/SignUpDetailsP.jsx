@@ -115,7 +115,7 @@ const SignUpDetailsP = () => {
       const result = await createPostalProfile(profileData);
       
       if (result.success) {
-        // Navigate to postal dashboard
+        // Navigate to super admin dashboard
         navigate('/postal/company-details', {
           state: {
             email: email || user?.email,
@@ -127,7 +127,7 @@ const SignUpDetailsP = () => {
         setError(result.error || 'Failed to save profile. Please try again.');
       }
     } catch (error) {
-      console.error('Error saving postal profile:', error);
+      console.error('Error saving super admin profile:', error);
       setError('An error occurred while saving your profile. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -143,7 +143,7 @@ const SignUpDetailsP = () => {
       <h1 className="text-3xl font-bold text-center mb-4">Enter Details</h1>
 
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-3xl">
-        <h2 className="text-2xl font-bold text-center mb-8">Complete Your Postal Profile</h2>
+        <h2 className="text-2xl font-bold text-center mb-8">Complete Your Super Admin Profile</h2>
         
         {error && (
           <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">

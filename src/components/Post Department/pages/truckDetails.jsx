@@ -11,24 +11,20 @@ import { useState, useEffect } from "react"
 import { useNavigate } from 'react-router-dom'
 import api from '../../../utils/api'
 
-
-
-
-
 function TruckDetails() {
 
-        // trucks will be loaded from backend
-        const [trucks, setTrucks] = useState([])
-        const [loading, setLoading] = useState(true)
+    // trucks will be loaded from backend
+    const [trucks, setTrucks] = useState([])
+    const [loading, setLoading] = useState(true)
 
-        useEffect(()=>{
-            let mounted = true
-            api.fetchTrucks()
-                .then(list => { if(mounted) setTrucks(list) })
-                .catch(()=> { if(mounted) setTrucks([]) })
-                .finally(()=> { if(mounted) setLoading(false) })
-            return () => mounted = false
-        },[])
+    useEffect(()=>{
+        let mounted = true
+        api.fetchTrucks()
+            .then(list => { if(mounted) setTrucks(list) })
+            .catch(()=> { if(mounted) setTrucks([]) })
+            .finally(()=> { if(mounted) setLoading(false) })
+        return () => mounted = false
+    },[])
 
     const truckLoadPercentage = 80;
     const truckDetails = {
@@ -39,7 +35,6 @@ function TruckDetails() {
         maintenance: "12-Dec-03", // Current load in kg
     };
 
-
     const sampleCheckpoints = [
         { name: 'Checkpoint 1', position: '5%' },
         { name: 'Checkpoint 2', position: '25%' },
@@ -48,8 +43,6 @@ function TruckDetails() {
         { name: 'Checkpoint 5', position: '85%' },
     ];
 
-
-
     const dates = [
         { x: new Date('2024-01-01').getTime(), y: 1000000 },
         { x: new Date('2024-02-01').getTime(), y: 1500000 },
@@ -57,24 +50,28 @@ function TruckDetails() {
         // Add more data points as needed
     ];
     
-
-        const [selectedTruckId, setSelectedTruckId] = useState()
-        const selectedTruck = trucks.find(t => t.id === selectedTruckId) || trucks[0]
-        useEffect(()=>{
-            if(trucks.length && selectedTruckId == null){
-                setSelectedTruckId(trucks[0].id)
-            }
-        },[trucks, selectedTruckId])
+    const [selectedTruckId, setSelectedTruckId] = useState()
+    const selectedTruck = trucks.find(t => t.id === selectedTruckId) || trucks[0]
+    
+    useEffect(()=>{
+        if(trucks.length && selectedTruckId == null){
+            setSelectedTruckId(trucks[0].id)
+        }
+    },[trucks, selectedTruckId])
+    
     const navigate = useNavigate()
-
 
     return (
         <>
-
             <div className='grid grid-cols-[20%_80%]'>
                 <SideBar trucks={trucks} selectedId={selectedTruckId} onSelect={setSelectedTruckId} />
 
                 <div className="">
+                    <div className="bg-white p-4 rounded-lg shadow mb-4">
+                        <h2 className="text-xl font-bold text-gray-800 mb-2">Fleet Management</h2>
+                        <p className="text-gray-600">Monitor and manage all trucks in the fleet</p>
+                    </div>
+                    
                     <div>
                         <div className="flex gap-4">
                             {loading ? <div>Loading trucks...</div> : <Map trucks={[selectedTruck]} />}
@@ -101,27 +98,17 @@ function TruckDetails() {
                                 <div className="w-full">
                                     <Graph />
                                 </div>
-
                             </div>
-
 
                             <div className="ml-8 mt-4 pl-8">
                                 <Location checkpoints={sampleCheckpoints} />
                             </div>
                         </div>
                     </div>
-
-
-
-
-
                 </div>
-
             </div>
-            </>
-            )
+        </>
+    )
 }
 
-
-
-            export default TruckDetails
+export default TruckDetails

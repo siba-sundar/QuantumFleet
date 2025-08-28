@@ -62,22 +62,22 @@ const DashboardEntry = () => {
             </div>
           </div>
 
-          {/* Postal Dashboard */}
+          {/* Super Admin Dashboard */}
           <div 
             onClick={() => navigate('/auth/postal/signin')}
             className="bg-white p-8 rounded-lg shadow-lg hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-green-500"
           >
             <div className="text-center">
               <Mail className="w-16 h-16 mx-auto mb-4 text-green-600" />
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Postal Dashboard</h2>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Super Admin Dashboard</h2>
               <p className="text-gray-600 mb-4">
-                Access postal department features including company management, driver oversight, and warehouse operations.
+                Access super admin features including company management, driver oversight, and fleet operations.
               </p>
               <div className="text-sm text-gray-500">
                 <p>• Company Details</p>
                 <p>• Truck Details</p>
                 <p>• Driver List</p>
-                <p>• Inbox & Warehouse</p>
+                <p>• Inbox</p>
                 <p>• Fleet Dashboard</p>
               </div>
             </div>

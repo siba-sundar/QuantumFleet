@@ -52,7 +52,7 @@ function TopNav({ options }) {
     if (user?.userType === 'business') {
       basePath = '/business/';
     } else if (user?.userType === 'postal') {
-      basePath = '/postal/';
+      basePath = '/postal/'; // Super admin base path
     } else if (user?.userType === 'driver') {
       basePath = '/driver/';
     }
@@ -126,7 +126,7 @@ function TopNav({ options }) {
       case 'business':
         return 'Business User';
       case 'postal':
-        return 'Postal Department';
+        return 'Super Admin';
       case 'driver':
         return 'Truck Driver';
       default:

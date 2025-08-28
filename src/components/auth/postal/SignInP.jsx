@@ -44,7 +44,7 @@ const SignInP = () => {
           navigate('/postal/company-details');
         } else {
           clearError();
-          alert('This account is not registered as a postal account.');
+          alert('This account is not registered as a super admin account.');
         }
       }
       // Error handling is managed by the useAuth hook
@@ -68,7 +68,7 @@ const SignInP = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h2 className="text-2xl font-bold text-center mb-8">Postal Sign In</h2>
+        <h2 className="text-2xl font-bold text-center mb-8">Super Admin Sign In</h2>
         
         {error && (
           <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
@@ -85,7 +85,7 @@ const SignInP = () => {
               className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black ${
                 error ? 'border-red-500' : ''
               }`}
-              placeholder="Enter your postal email"
+              placeholder="Enter your super admin email"
               value={formData.email}
               onChange={handleInputChange}
               disabled={isSubmitting || loading}

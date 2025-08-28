@@ -46,7 +46,8 @@ import CompanyDetails from './components/Post Department/pages/companyDetails';
 import TruckDetails from './components/Post Department/pages/truckDetails';
 import DriverList from './components/Post Department/pages/driverList';
 import InboxPage from './components/Post Department/pages/inboxPage';
-import WareHouse from './components/Post Department/pages/wareHouse';
+import SuperAdminFleetDashboard from './components/Post Department/pages/fleetDashboard';
+import SuperAdminDashboard from './components/Post Department/SuperAdminDashboard';
 
 // GPS Tracking Components
 import DriverTrackingPage from './components/tracking/DriverTrackingPage';
@@ -107,16 +108,14 @@ function App() {
           <Route path="mis-reports" element={<MISReport />} />
         </Route>
         
-        {/* Postal Department Routes */}
-        <Route path="/postal" element={<PostalRouteGuard><AuthTopNavLayout options={["Company Details", "Truck Details", "Driver List", "Inbox", "Warehouse", "Fleet Dashboard", "MIS Reports"]} /></PostalRouteGuard>}>
+        {/* Super Admin Dashboard Routes */}
+        <Route path="/postal" element={<PostalRouteGuard><SuperAdminDashboard options={["Company Details", "Truck Details", "Driver List", "Inbox", "Fleet Dashboard"]} /></PostalRouteGuard>}>
           <Route index element={<CompanyDetails />} />
           <Route path="company-details" element={<CompanyDetails />} />
           <Route path="truck-details" element={<TruckDetails />} />
           <Route path="driver-list" element={<DriverList />} />
           <Route path="inbox" element={<InboxPage />} />
-          <Route path="warehouse" element={<WareHouse />} />
-          <Route path="fleet-dashboard" element={<FleetDashboard />} />
-          <Route path="mis-reports" element={<MISReport />} />
+          <Route path="fleet-dashboard" element={<SuperAdminFleetDashboard />} />
         </Route>
         
         {/* Driver Dashboard Routes */}
