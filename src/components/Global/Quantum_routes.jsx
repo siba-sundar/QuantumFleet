@@ -128,7 +128,7 @@ const VehicleRoutingOptimizer = () => {
     };
 
     try {
-      const response = await fetch(`${quantumServerUrl}/optimize?shots=${shots}&include_counts=true`, {
+      const response = await fetch(`${quantumServerUrl}/optimize?method=qaoa&shots=${shots}&include_counts=true&qaoa_penalty=2.0&qaoa_p=1`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
