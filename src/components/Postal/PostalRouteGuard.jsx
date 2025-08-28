@@ -1,12 +1,30 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 
 const PostalRouteGuard = ({ children }) => {
-  const currentPath = window.location.pathname;
+  const { user, loading } = useAuth();
   
-  // Check if we're trying to access postal routes from outside postal context
-  if (!currentPath.startsWith('/postal')) {
-    return <Navigate to="/postal" replace />;
+  // Show loading state while checking auth
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  
+  // If user is not authenticated, redirect to sign in
+  if (!user) {
+    return <Navigate to="/auth/postal/signin" replace />;
+  }
+  
+  // If user is not a postal user, redirect to their portal
+  if (user.userType !== 'postal') {
+    switch (user.userType) {
+      case 'driver':
+        return <Navigate to="/driver/your-truck" replace />;
+      case 'business':
+        return <Navigate to="/business/track-truck" replace />;
+      default:
+        return <Navigate to="/auth/signin" replace />;
+    }
   }
   
   return children;

@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';  // Import useNavigate for routing
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth'; // Import useAuth hook
 
 // assets
 import logo from "../../assets/logo1.svg";
@@ -8,98 +9,128 @@ import contactIcon from "../../assets/contact-icon.svg";
 import profileIcon from "../../assets/profile-icon.svg";
 
 function TopNav({ options }) {
-  const [activeOption, setActiveOption] = useState(options[0]);
-  const navigate = useNavigate();  // Initialize the navigation hook
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, signOut } = useAuth(); // Get user and signOut from auth context
+  
+  // Set active option based on current path
+  const getCurrentOptionFromPath = () => {
+    const path = location.pathname;
+    
+    // Map paths to option names
+    if (path.includes('track-truck')) return 'Track Your Truck';
+    if (path.includes('truck-reservation')) return 'Truck Reservation';
+    if (path.includes('fleet-dashboard')) return 'Fleet Dashboard';
+    if (path.includes('gps-management')) return 'GPS Management';
+    if (path.includes('mis-reports')) return 'MIS Reports';
+    if (path.includes('company-details')) return 'Company Details';
+    if (path.includes('truck-details')) return 'Truck Details';
+    if (path.includes('driver-list')) return 'Driver List';
+    if (path.includes('inbox')) return 'Inbox';
+    if (path.includes('warehouse')) return 'Warehouse';
+    if (path.includes('your-truck')) return 'Your Truck';
+    if (path.includes('sentiment-analysis')) return 'Sentiment Analysis';
+    if (path.includes('driver-details')) return 'Driver Details';
+    
+    // Default to first option if no match
+    return options[0];
+  };
+  
+  const [activeOption, setActiveOption] = useState(getCurrentOptionFromPath());
+  
+  // Update active option when location changes
+  useEffect(() => {
+    setActiveOption(getCurrentOptionFromPath());
+  }, [location]);
 
   // Function to handle navigation when an option is clicked
   const handleOptionClick = (option) => {
     setActiveOption(option);
-
-    // Define the routes corresponding to each option
+    
+    // Create base path according to user type
+    let basePath = '/';
+    if (user?.userType === 'business') {
+      basePath = '/business/';
+    } else if (user?.userType === 'postal') {
+      basePath = '/postal/';
+    } else if (user?.userType === 'driver') {
+      basePath = '/driver/';
+    }
+    
+    // Map option to path
     switch (option) {
-      // Business Routes
+      // Business options
       case 'Track Your Truck':
-        navigate('/business/track-truck');
+        navigate(basePath + 'track-truck');
         break;
-
       case 'Truck Reservation':
-        navigate('/business/truck-reservation');
+        navigate(basePath + 'truck-reservation');
         break;
-
       case 'Fleet Dashboard':
-        // Check context for appropriate fleet dashboard
-        const currentPath = window.location.pathname;
-        if (currentPath.startsWith('/postal/')) {
-          navigate('/postal/fleet-dashboard');
-        } else {
-          navigate('/business/fleet-dashboard');
-        }
+        navigate(basePath + 'fleet-dashboard');
         break;
-
       case 'GPS Management':
-        navigate('/business/gps-management');
+        navigate(basePath + 'gps-management');
         break;
-
       case 'MIS Reports':
-        // Check context for appropriate MIS reports
-        const path = window.location.pathname;
-        if (path.startsWith('/postal/')) {
-          navigate('/postal/mis-reports');
-        } else {
-          navigate('/business/mis-reports');
-        }
+        navigate(basePath + 'mis-reports');
         break;
-
-      // Postal Department Routes
+        
+      // Postal options
       case 'Company Details':
-        navigate('/postal/company-details');
+        navigate(basePath + 'company-details');
         break;
-
       case 'Truck Details':
-        navigate('/postal/truck-details');
+        navigate(basePath + 'truck-details');
         break;
-
       case 'Driver List':
-        navigate('/postal/driver-list');
+        navigate(basePath + 'driver-list');
         break;
-
       case 'Inbox':
-        navigate('/postal/inbox');
+        navigate(basePath + 'inbox');
         break;
-
       case 'Warehouse':
-        navigate('/postal/warehouse');
+        navigate(basePath + 'warehouse');
         break;
-
-      // Driver Routes
+        
+      // Driver options
       case 'Your Truck':
-        navigate('/driver/your-truck');
+        navigate(basePath + 'your-truck');
         break;
-
       case 'Sentiment Analysis':
-        navigate('/driver/sentiment-analysis');
+        navigate(basePath + 'sentiment-analysis');
         break;
-
       case 'Driver Details':
-        navigate('/driver/driver-details');
+        navigate(basePath + 'driver-details');
         break;
-
-      // Legacy routes (for backward compatibility)
-      case 'Truck':
-        navigate('/business/track-truck');
-        break;
-
-      case 'Third Party Logistics':
-        navigate('/business/truck-reservation');
-        break;
-
-      case 'Drivers':
-        navigate('/postal/driver-list');
-        break;
-
+        
       default:
         console.warn(`No route defined for option: ${option}`);
         break;
+    }
+  };
+
+  // Function to handle sign out
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/auth/signin');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  // Get user type display name
+  const getUserTypeDisplayName = () => {
+    switch (user?.userType) {
+      case 'business':
+        return 'Business User';
+      case 'postal':
+        return 'Postal Department';
+      case 'driver':
+        return 'Truck Driver';
+      default:
+        return 'User';
     }
   };
 
@@ -126,8 +157,27 @@ function TopNav({ options }) {
       <div className="flex items-center justify-center gap-5">
         <img src={settingIcon} alt="settings" className="w-6" />
         <img src={contactIcon} alt="contact" className="w-6" />
-        <div className="rounded-full w-[3rem] h-[3rem]">
-          <img src={profileIcon} alt="profile" className="w-[4rem]" />
+        <div className="relative group">
+          <div className="rounded-full w-[3rem] h-[3rem] cursor-pointer">
+            <img src={profileIcon} alt="profile" className="w-[4rem]" />
+          </div>
+          {/* Dropdown menu with user info and sign out */}
+          <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl py-2 hidden group-hover:block z-50">
+            <div className="px-4 py-2 border-b">
+              <p className="font-semibold text-gray-800">
+                {user?.email || user?.phoneNumber || 'User'}
+              </p>
+              <p className="text-sm text-gray-600">
+                {getUserTypeDisplayName()}
+              </p>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="w-full text-left px-4 py-2 text-red-600 hover:bg-red-50 font-medium"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -24,9 +24,17 @@ import SignInCard from './components/auth/SignCard/SignInCard';
 import SignUpCard from './components/auth/SignCard/SignUpCard';
 import AuthTopNavLayout from './components/Global/AuthTopNavLayout';
 
+// Route Guards
+import BusinessRouteGuard from './components/Business/BusinessRouteGuard';
+import PostalRouteGuard from './components/Postal/PostalRouteGuard';
+import DriverRouteGuard from './components/Drivers/DriverRouteGuard';
+
 // Business Components
 import TrackTruck from './components/Companies/pages/trackTruck';
 import TruckReservation from './components/Companies/pages/truckReservation';
+import FleetDashboard from './components/tracking/FleetDashboard';
+import TrackingManagement from './components/tracking/TrackingManagement';
+import MISReport from './components/misReport/misReports';
 
 // Driver Components
 import YourTruck from './components/Drivers/pages/yourTruck';
@@ -42,11 +50,6 @@ import WareHouse from './components/Post Department/pages/wareHouse';
 
 // GPS Tracking Components
 import DriverTrackingPage from './components/tracking/DriverTrackingPage';
-import FleetDashboard from './components/tracking/FleetDashboard';
-import TrackingManagement from './components/tracking/TrackingManagement';
-
-// MIS Reports
-import MISReport from './components/misReport/misReports';
 
 // Dashboard Entry
 import DashboardEntry from './components/DashboardEntry';
@@ -95,30 +98,33 @@ function App() {
         <Route path="/dashboard" element={<DashboardEntry />} />
         
         {/* Business Dashboard Routes */}
-        <Route element={<AuthTopNavLayout options={["Track Your Truck", "Truck Reservation", "Fleet Dashboard", "GPS Management", "MIS Reports"]} />}>
-          <Route path="/business/track-truck" element={<TrackTruck />} />
-          <Route path="/business/truck-reservation" element={<TruckReservation />} />
-          <Route path="/business/fleet-dashboard" element={<FleetDashboard />} />
-          <Route path="/business/gps-management" element={<TrackingManagement />} />
-          <Route path="/business/mis-reports" element={<MISReport />} />
+        <Route path="/business" element={<BusinessRouteGuard><AuthTopNavLayout options={["Track Your Truck", "Truck Reservation", "Fleet Dashboard", "GPS Management", "MIS Reports"]} /></BusinessRouteGuard>}>
+          <Route index element={<TrackTruck />} />
+          <Route path="track-truck" element={<TrackTruck />} />
+          <Route path="truck-reservation" element={<TruckReservation />} />
+          <Route path="fleet-dashboard" element={<FleetDashboard />} />
+          <Route path="gps-management" element={<TrackingManagement />} />
+          <Route path="mis-reports" element={<MISReport />} />
         </Route>
         
         {/* Postal Department Routes */}
-        <Route element={<AuthTopNavLayout options={["Company Details", "Truck Details", "Driver List", "Inbox", "Warehouse", "Fleet Dashboard", "MIS Reports"]} />}>
-          <Route path="/postal/company-details" element={<CompanyDetails />} />
-          <Route path="/postal/truck-details" element={<TruckDetails />} />
-          <Route path="/postal/driver-list" element={<DriverList />} />
-          <Route path="/postal/inbox" element={<InboxPage />} />
-          <Route path="/postal/warehouse" element={<WareHouse />} />
-          <Route path="/postal/fleet-dashboard" element={<FleetDashboard />} />
-          <Route path="/postal/mis-reports" element={<MISReport />} />
+        <Route path="/postal" element={<PostalRouteGuard><AuthTopNavLayout options={["Company Details", "Truck Details", "Driver List", "Inbox", "Warehouse", "Fleet Dashboard", "MIS Reports"]} /></PostalRouteGuard>}>
+          <Route index element={<CompanyDetails />} />
+          <Route path="company-details" element={<CompanyDetails />} />
+          <Route path="truck-details" element={<TruckDetails />} />
+          <Route path="driver-list" element={<DriverList />} />
+          <Route path="inbox" element={<InboxPage />} />
+          <Route path="warehouse" element={<WareHouse />} />
+          <Route path="fleet-dashboard" element={<FleetDashboard />} />
+          <Route path="mis-reports" element={<MISReport />} />
         </Route>
         
         {/* Driver Dashboard Routes */}
-        <Route element={<AuthTopNavLayout options={["Your Truck", "Sentiment Analysis", "Driver Details"]} />}>
-          <Route path="/driver/your-truck" element={<YourTruck />} />
-          <Route path="/driver/sentiment-analysis" element={<DriverSurveyForm />} />
-          <Route path="/driver/driver-details" element={<DriverDetailsUpdated />} />
+        <Route path="/driver" element={<DriverRouteGuard><AuthTopNavLayout options={["Your Truck", "Sentiment Analysis", "Driver Details"]} /></DriverRouteGuard>}>
+          <Route index element={<YourTruck />} />
+          <Route path="your-truck" element={<YourTruck />} />
+          <Route path="sentiment-analysis" element={<DriverSurveyForm />} />
+          <Route path="driver-details" element={<DriverDetailsUpdated />} />
         </Route>
         
         {/* Public GPS Tracking */}

@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
-const BusinessRouteGuard = ({ children }) => {
+const DriverRouteGuard = ({ children }) => {
   const { user, loading } = useAuth();
   const currentPath = window.location.pathname;
   
@@ -13,14 +13,14 @@ const BusinessRouteGuard = ({ children }) => {
   
   // If user is not authenticated, redirect to sign in
   if (!user) {
-    return <Navigate to="/auth/business/signin" replace />;
+    return <Navigate to="/auth/driver/signin" replace />;
   }
   
-  // If user is not a business user, redirect to their portal
-  if (user.userType !== 'business') {
+  // If user is not a driver, redirect to their portal
+  if (user.userType !== 'driver') {
     switch (user.userType) {
-      case 'driver':
-        return <Navigate to="/driver/your-truck" replace />;
+      case 'business':
+        return <Navigate to="/business/track-truck" replace />;
       case 'postal':
         return <Navigate to="/postal/company-details" replace />;
       default:
@@ -28,12 +28,12 @@ const BusinessRouteGuard = ({ children }) => {
     }
   }
   
-  // Check if we're trying to access business routes from outside business context
-  if (!currentPath.startsWith('/business')) {
-    return <Navigate to="/business" replace />;
+  // Check if we're trying to access driver routes from outside driver context
+  if (!currentPath.startsWith('/driver')) {
+    return <Navigate to="/driver/your-truck" replace />;
   }
   
   return children;
 };
 
-export default BusinessRouteGuard;
+export default DriverRouteGuard;

@@ -1,9 +1,36 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 import { Building2, Mail, Truck } from 'lucide-react';
 
 const DashboardEntry = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Redirect user based on their type
+  React.useEffect(() => {
+    if (user) {
+      switch (user.userType) {
+        case 'business':
+          navigate('/business/track-truck');
+          break;
+        case 'postal':
+          navigate('/postal/company-details');
+          break;
+        case 'driver':
+          navigate('/driver/your-truck');
+          break;
+        default:
+          // If user type is not recognized, stay on dashboard entry
+          break;
+      }
+    }
+  }, [user, navigate]);
+
+  // If user is already authenticated, don't show the dashboard entry
+  if (user) {
+    return <div>Redirecting...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
@@ -16,7 +43,7 @@ const DashboardEntry = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Business Dashboard */}
           <div 
-            onClick={() => navigate('/business/track-truck')}
+            onClick={() => navigate('/auth/business/signin')}
             className="bg-white p-8 rounded-lg shadow-lg hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-blue-500"
           >
             <div className="text-center">
@@ -37,7 +64,7 @@ const DashboardEntry = () => {
 
           {/* Postal Dashboard */}
           <div 
-            onClick={() => navigate('/postal/company-details')}
+            onClick={() => navigate('/auth/postal/signin')}
             className="bg-white p-8 rounded-lg shadow-lg hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-green-500"
           >
             <div className="text-center">
@@ -58,7 +85,7 @@ const DashboardEntry = () => {
 
           {/* Driver Dashboard */}
           <div 
-            onClick={() => navigate('/driver/your-truck')}
+            onClick={() => navigate('/auth/driver/signin')}
             className="bg-white p-8 rounded-lg shadow-lg hover:shadow-xl transition-shadow cursor-pointer border-2 border-transparent hover:border-orange-500"
           >
             <div className="text-center">
