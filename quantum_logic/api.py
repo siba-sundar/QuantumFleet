@@ -28,7 +28,10 @@ def root():
 def optimize(
     request: Dict[str, Any] = Body(..., description="VRP input JSON"),
     shots: int = Query(2000, ge=1, le=100000, description="Simulator repetitions per location"),
-    include_counts: bool = Query(True, description="Include measurement histograms per location")
+    include_counts: bool = Query(True, description="Include measurement histograms per location"),
+    method: str = Query("pqc", description='Assignment method: "pqc" (default) or "qaoa"'),
+    qaoa_penalty: float = Query(2.0, description="QAOA penalty A for one-hot constraint (only if method=qaoa)"),
+    qaoa_p: int = Query(1, ge=1, le=3, description="QAOA layers p (only if method=qaoa)")
 ):
     """
     Accepts a VRP JSON input and returns a structured assignment result.
@@ -38,7 +41,7 @@ def optimize(
          -H "Content-Type: application/json" \
          -d @your_data.json
     """
-    result = optimize_vrp(request, shots=shots, include_counts=include_counts)
+    result = optimize_vrp(request, shots=shots, include_counts=include_counts, method=method, qaoa_penalty=qaoa_penalty, qaoa_p=qaoa_p)
     return result
 
 
