@@ -153,4 +153,3 @@ def run_qaoa_assignment(costs: np.ndarray, shots: int = 2000, p: int = 1, A: flo
         counts_by_index[idx] = shots
 
     return counts_by_index, best_pair
-

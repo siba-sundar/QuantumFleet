@@ -112,4 +112,3 @@ def optimize_vrp(raw: Dict, shots: int = 2000, include_counts: bool = True, meth
     if include_counts:
         result["counts_by_location"] = counts_by_loc_id
     return result
-

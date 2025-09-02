@@ -14,7 +14,7 @@
     "@googlemaps/google-maps-services-js": "^3.4.2",
     "@googlemaps/js-api-loader": "^1.16.10",
     "@googlemaps/react-wrapper": "^1.2.0",
-    "apexcharts": "^3.53.0",
+  "apexcharts": "^4.0.0",
     "axios": "^1.11.0",
     "chart.js": "^4.1.1",
     "chartjs-gauge": "^0.3.0",
