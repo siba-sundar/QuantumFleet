@@ -1,5 +1,6 @@
 import express from 'express';
 import smsService from '../services/smsService.js';
+import emailService from '../services/emailService.js';
 import gpsTrackingService from '../services/gpsTrackingService.js';
 import geofencingService from '../services/geofencingService.js';
 import { TrackingSession, Alert } from '../models/gpsModels.js';
@@ -54,40 +55,89 @@ router.post('/generate-link', async (req, res) => {
 });
 
 /**
- * Send tracking SMS to driver
- * POST /api/sms/send-tracking-link
+ * Send tracking link to driver via SMS or Email
+ * POST /api/tracking/send-tracking-link
  */
 router.post('/send-tracking-link', async (req, res) => {
   try {
-    const { phone, vehicleId, driverName = 'Driver', customMessage } = req.body;
+    const { 
+      phone, 
+      email, 
+      contactMethod = 'phone', 
+      vehicleId, 
+      driverName = 'Driver', 
+      customMessage 
+    } = req.body;
 
     // Validate required fields
-    if (!phone || !vehicleId) {
+    if (!vehicleId) {
       return res.status(400).json({
         success: false,
-        error: 'Phone number and vehicle ID are required'
+        error: 'Vehicle ID is required'
       });
     }
 
-    // Format phone number
-    const formattedPhone = smsService.formatPhoneNumber(phone);
-    
-    if (!smsService.validatePhoneNumber(formattedPhone)) {
+    // Validate contact method and contact info
+    if (contactMethod === 'phone') {
+      if (!phone) {
+        return res.status(400).json({
+          success: false,
+          error: 'Phone number is required when using phone contact method'
+        });
+      }
+
+      // Format and validate phone number
+      const formattedPhone = smsService.formatPhoneNumber(phone);
+      
+      if (!smsService.validatePhoneNumber(formattedPhone)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid phone number format'
+        });
+      }
+
+      // Send tracking link via SMS
+      const result = await smsService.sendTrackingLink(
+        formattedPhone,
+        vehicleId,
+        driverName,
+        customMessage
+      );
+
+      res.json(result);
+
+    } else if (contactMethod === 'email') {
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          error: 'Email address is required when using email contact method'
+        });
+      }
+
+      // Validate email address
+      if (!emailService.validateEmail(email)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid email address format'
+        });
+      }
+
+      // Send tracking link via Email
+      const result = await emailService.sendTrackingLink(
+        email,
+        vehicleId,
+        driverName,
+        customMessage
+      );
+
+      res.json(result);
+
+    } else {
       return res.status(400).json({
         success: false,
-        error: 'Invalid phone number format'
+        error: 'Invalid contact method. Must be "phone" or "email"'
       });
     }
-
-    // Send tracking link
-    const result = await smsService.sendTrackingLink(
-      formattedPhone,
-      vehicleId,
-      driverName,
-      customMessage
-    );
-
-    res.json(result);
 
   } catch (error) {
     console.error('Error sending tracking link:', error);
@@ -117,6 +167,8 @@ router.get('/sessions', (req, res) => {
       sessionId: session.sessionId,
       vehicleId: session.vehicleId,
       driverPhone: session.driverPhone,
+      driverEmail: session.driverEmail,
+      contactMethod: session.contactMethod || 'phone',
       status: session.status,
       startedAt: session.startedAt,
       lastLocationUpdate: session.lastLocationUpdate,
@@ -444,7 +496,25 @@ router.post('/:sessionId/resend', async (req, res) => {
     const { sessionId } = req.params;
     const { driverName = 'Driver' } = req.body;
     
-    const result = await smsService.resendTrackingLink(sessionId, driverName);
+    // Get session to determine contact method
+    const session = TrackingSession.findBySessionId(sessionId);
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        error: 'Tracking session not found'
+      });
+    }
+
+    let result;
+    if (session.contactMethod === 'email' && session.driverEmail) {
+      // Resend via email
+      result = await emailService.resendTrackingLink(sessionId, driverName);
+    } else if (session.driverPhone) {
+      // Resend via SMS (default)
+      result = await smsService.resendTrackingLink(sessionId, driverName);
+    } else {
+      throw new Error('No valid contact method found for this session');
+    }
     
     res.json(result);
 

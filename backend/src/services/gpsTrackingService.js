@@ -2,6 +2,7 @@ import { TrackingSession, VehicleLocation, Alert } from '../models/gpsModels.js'
 import { Client } from '@googlemaps/google-maps-services-js';
 import geofencingService from './geofencingService.js';
 import webSocketService from './webSocketService.js';
+import { LocationCacheRepository } from '../repositories/LocationCacheRepository.js';
 
 class GpsTrackingService {
   constructor() {
@@ -10,6 +11,7 @@ class GpsTrackingService {
     this.accuracyThreshold = parseInt(process.env.GPS_ACCURACY_THRESHOLD) || 100;
     this.deviationThreshold = parseInt(process.env.DEVIATION_THRESHOLD_METERS) || 500;
     this.delayThreshold = parseInt(process.env.DELAY_THRESHOLD_MINUTES) || 30;
+    this.locationCache = new LocationCacheRepository();
   }
 
   /**
@@ -330,33 +332,386 @@ class GpsTrackingService {
   }
 
   /**
-   * Reverse geocode coordinates to address
+   * Reverse geocode coordinates to address with enhanced data
    * @param {number} latitude - Latitude
    * @param {number} longitude - Longitude
-   * @returns {Promise<string>} Address string
+   * @param {boolean} useCache - Whether to use cache
+   * @returns {Promise<Object>} Enhanced address data
    */
-  async reverseGeocode(latitude, longitude) {
+  async reverseGeocode(latitude, longitude, useCache = true) {
     try {
       if (!this.apiKey) {
-        return `${latitude}, ${longitude}`;
+        return {
+          address: `${latitude}, ${longitude}`,
+          coordinates: { lat: latitude, lng: longitude },
+          source: 'fallback'
+        };
+      }
+
+      // Check cache first if enabled
+      if (useCache) {
+        const cacheKey = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+        const cached = await this.locationCache.getCachedLocation(cacheKey);
+        if (cached) {
+          return {
+            ...cached,
+            source: 'cache'
+          };
+        }
       }
 
       const response = await this.googleMapsClient.reverseGeocode({
         params: {
           latlng: `${latitude},${longitude}`,
-          key: this.apiKey
+          key: this.apiKey,
+          result_type: 'street_address|route|neighborhood|locality|administrative_area_level_1|administrative_area_level_2|country'
         }
       });
 
       if (response.data.status !== 'OK' || response.data.results.length === 0) {
-        return `${latitude}, ${longitude}`;
+        return {
+          address: `${latitude}, ${longitude}`,
+          coordinates: { lat: latitude, lng: longitude },
+          source: 'fallback'
+        };
       }
 
-      return response.data.results[0].formatted_address;
+      const result = response.data.results[0];
+      const locationData = {
+        address: result.formatted_address,
+        coordinates: { lat: latitude, lng: longitude },
+        placeId: result.place_id,
+        addressComponents: this.parseAddressComponents(result.address_components),
+        types: result.types,
+        source: 'google_api'
+      };
+
+      // Cache the result for future use
+      if (useCache) {
+        const cacheKey = `${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+        await this.locationCache.cacheLocation(cacheKey, locationData);
+      }
+
+      return locationData;
 
     } catch (error) {
       console.error('Geocoding error:', error);
-      return `${latitude}, ${longitude}`;
+      return {
+        address: `${latitude}, ${longitude}`,
+        coordinates: { lat: latitude, lng: longitude },
+        source: 'fallback',
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Forward geocode address to coordinates
+   * @param {string} address - Address to geocode
+   * @param {boolean} useCache - Whether to use cache
+   * @returns {Promise<Object>} Location data with coordinates
+   */
+  async geocodeAddress(address, useCache = true) {
+    try {
+      if (!this.apiKey) {
+        throw new Error('Google Maps API key not configured');
+      }
+
+      // Check cache first if enabled
+      if (useCache) {
+        const cached = await this.locationCache.getCachedLocation(address);
+        if (cached) {
+          return {
+            ...cached,
+            source: 'cache'
+          };
+        }
+      }
+
+      const response = await this.googleMapsClient.geocode({
+        params: {
+          address: address,
+          key: this.apiKey,
+          region: 'IN', // Bias towards India
+          components: 'country:IN' // Restrict to India
+        }
+      });
+
+      if (response.data.status !== 'OK' || response.data.results.length === 0) {
+        throw new Error(`Geocoding failed: ${response.data.status}`);
+      }
+
+      const result = response.data.results[0];
+      const locationData = {
+        address: result.formatted_address,
+        coordinates: {
+          lat: result.geometry.location.lat,
+          lng: result.geometry.location.lng
+        },
+        placeId: result.place_id,
+        addressComponents: this.parseAddressComponents(result.address_components),
+        types: result.types,
+        source: 'google_api'
+      };
+
+      // Cache the result
+      if (useCache) {
+        await this.locationCache.cacheLocation(address, locationData);
+      }
+
+      return locationData;
+
+    } catch (error) {
+      console.error('Forward geocoding error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search for places near coordinates
+   * @param {number} latitude - Latitude
+   * @param {number} longitude - Longitude
+   * @param {Object} options - Search options
+   * @returns {Promise<Array>} Array of nearby places
+   */
+  async findNearbyPlaces(latitude, longitude, options = {}) {
+    try {
+      if (!this.apiKey) {
+        return [];
+      }
+
+      const defaultOptions = {
+        radius: 1000, // 1km default
+        type: 'establishment'
+      };
+
+      const searchOptions = { ...defaultOptions, ...options };
+
+      const response = await this.googleMapsClient.placesNearby({
+        params: {
+          location: `${latitude},${longitude}`,
+          radius: searchOptions.radius,
+          type: searchOptions.type,
+          key: this.apiKey
+        }
+      });
+
+      if (response.data.status !== 'OK') {
+        return [];
+      }
+
+      return response.data.results.map(place => ({
+        placeId: place.place_id,
+        name: place.name,
+        vicinity: place.vicinity,
+        coordinates: {
+          lat: place.geometry.location.lat,
+          lng: place.geometry.location.lng
+        },
+        types: place.types,
+        rating: place.rating,
+        priceLevel: place.price_level
+      }));
+
+    } catch (error) {
+      console.error('Error finding nearby places:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Update vehicle location with enhanced address data
+   * @param {string} vehicleId - Vehicle ID
+   * @param {Object} locationData - GPS location data
+   * @param {Object} options - Update options
+   * @returns {Promise<Object>} Update result
+   */
+  async updateVehicleLocationEnhanced(vehicleId, locationData, options = {}) {
+    try {
+      const { latitude, longitude, accuracy, timestamp, source = 'gps' } = locationData;
+      
+      // Get enhanced address information
+      const addressData = await this.reverseGeocode(latitude, longitude);
+      
+      // Find nearby places for context
+      const nearbyPlaces = options.includeNearbyPlaces ? 
+        await this.findNearbyPlaces(latitude, longitude, { radius: 500 }) : [];
+      
+      // Prepare enhanced location data
+      const enhancedLocation = {
+        address: addressData.address,
+        formattedAddress: addressData.address,
+        latitude,
+        longitude,
+        addressComponents: addressData.addressComponents || {},
+        placeId: addressData.placeId,
+        placeTypes: addressData.types || [],
+        accuracy: accuracy || null,
+        timestamp: timestamp || new Date(),
+        source,
+        isVerified: source === 'manual',
+        confidence: this.calculateLocationConfidence(accuracy, source),
+        nearbyPlaces: nearbyPlaces.slice(0, 3) // Top 3 nearby places
+      };
+
+      // Save to vehicle location (this would integrate with your existing vehicle storage)
+      const result = await this.saveVehicleLocation(vehicleId, enhancedLocation);
+      
+      // Broadcast real-time update
+      if (webSocketService) {
+        webSocketService.broadcast('vehicle_location_update', {
+          vehicleId,
+          location: enhancedLocation,
+          timestamp: new Date()
+        });
+      }
+
+      return {
+        success: true,
+        location: enhancedLocation,
+        result
+      };
+
+    } catch (error) {
+      console.error('Error updating enhanced vehicle location:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Parse Google Maps address components
+   * @param {Array} components - Address components from Google
+   * @returns {Object} Parsed components
+   */
+  parseAddressComponents(components) {
+    if (!components) return {};
+
+    return components.reduce((acc, component) => {
+      const types = component.types;
+      
+      if (types.includes('street_number')) {
+        acc.streetNumber = component.long_name;
+      }
+      if (types.includes('route')) {
+        acc.route = component.long_name;
+      }
+      if (types.includes('locality')) {
+        acc.locality = component.long_name;
+      }
+      if (types.includes('administrative_area_level_1')) {
+        acc.administrativeArea = component.long_name;
+      }
+      if (types.includes('administrative_area_level_2')) {
+        acc.administrativeAreaLevel2 = component.long_name;
+      }
+      if (types.includes('country')) {
+        acc.country = component.long_name;
+        acc.countryCode = component.short_name;
+      }
+      if (types.includes('postal_code')) {
+        acc.postalCode = component.long_name;
+      }
+      if (types.includes('sublocality')) {
+        acc.sublocality = component.long_name;
+      }
+      
+      return acc;
+    }, {});
+  }
+
+  /**
+   * Calculate location confidence score
+   * @param {number} accuracy - GPS accuracy in meters
+   * @param {string} source - Location source
+   * @returns {number} Confidence score (0-100)
+   */
+  calculateLocationConfidence(accuracy, source) {
+    let baseScore = 100;
+    
+    // Reduce score based on GPS accuracy
+    if (accuracy) {
+      if (accuracy > 100) baseScore -= 50;
+      else if (accuracy > 50) baseScore -= 30;
+      else if (accuracy > 20) baseScore -= 15;
+      else if (accuracy > 10) baseScore -= 5;
+    }
+    
+    // Adjust based on source
+    switch (source) {
+      case 'manual':
+        baseScore = Math.min(baseScore + 20, 100);
+        break;
+      case 'api':
+        baseScore = Math.min(baseScore + 10, 100);
+        break;
+      case 'gps':
+        // No adjustment for GPS
+        break;
+      default:
+        baseScore -= 10;
+    }
+    
+    return Math.max(0, Math.min(100, baseScore));
+  }
+
+  /**
+   * Get location suggestions for autocomplete
+   * @param {string} query - Search query
+   * @param {Object} options - Search options
+   * @returns {Promise<Array>} Location suggestions
+   */
+  async getLocationSuggestions(query, options = {}) {
+    try {
+      if (!this.apiKey) {
+        throw new Error('Google Maps API key not configured');
+      }
+
+      // Check for similar cached locations first
+      const cachedSuggestions = await this.locationCache.searchSimilarCached(query, 3);
+      
+      const response = await this.googleMapsClient.placeAutocomplete({
+        params: {
+          input: query,
+          key: this.apiKey,
+          components: 'country:IN',
+          types: options.types || 'establishment|geocode',
+          ...options
+        }
+      });
+
+      if (response.data.status !== 'OK') {
+        return cachedSuggestions; // Return cached results if API fails
+      }
+
+      const apiSuggestions = response.data.predictions.map(prediction => ({
+        placeId: prediction.place_id,
+        description: prediction.description,
+        mainText: prediction.structured_formatting?.main_text || prediction.description,
+        secondaryText: prediction.structured_formatting?.secondary_text || '',
+        types: prediction.types,
+        source: 'google_api'
+      }));
+
+      // Combine cached and API suggestions, prioritizing API results
+      const combined = [
+        ...apiSuggestions,
+        ...cachedSuggestions.filter(cached => 
+          !apiSuggestions.some(api => api.description === cached.address)
+        ).map(cached => ({
+          description: cached.address,
+          mainText: cached.name || cached.address.split(',')[0],
+          secondaryText: cached.address.split(',').slice(1).join(','),
+          source: 'cache',
+          usageCount: cached.usageCount
+        }))
+      ];
+
+      return combined;
+
+    } catch (error) {
+      console.error('Error getting location suggestions:', error);
+      // Return cached suggestions as fallback
+      return await this.locationCache.searchSimilarCached(query, 5);
     }
   }
 

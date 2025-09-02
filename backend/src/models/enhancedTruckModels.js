@@ -3,6 +3,63 @@
  */
 
 /**
+ * Location Data Model for standardized location objects
+ */
+export const LocationDataModel = {
+  // Basic location information
+  address: String,           // Full address string
+  formattedAddress: String,  // Google-formatted address
+  latitude: Number,          // Precise coordinates
+  longitude: Number,
+  
+  // Google Places metadata
+  placeId: String,           // Google Place ID for reference
+  placeName: String,         // Place name (if applicable)
+  placeTypes: [String],      // e.g., ["establishment", "hospital"]
+  plusCode: String,          // Google Plus Code
+  
+  // Address components for filtering/search
+  addressComponents: {
+    streetNumber: String,
+    route: String,
+    locality: String,        // City
+    administrativeArea: String, // State
+    administrativeAreaLevel2: String, // District
+    country: String,
+    countryCode: String,
+    postalCode: String,
+    sublocality: String
+  },
+  
+  // Metadata
+  accuracy: Number,          // GPS accuracy in meters
+  timestamp: Date,
+  source: String,            // "manual", "gps", "api", "search"
+  isVerified: Boolean,       // Manual verification flag
+  confidence: Number         // Location confidence score (0-100)
+};
+
+/**
+ * Location Cache Model for performance optimization
+ */
+export const LocationCacheModel = {
+  id: String,                 // Hash of the address
+  address: String,
+  coordinates: {
+    latitude: Number,
+    longitude: Number
+  },
+  placeId: String,
+  formattedAddress: String,
+  addressComponents: Object,
+  placeTypes: [String],
+  lastUsed: Date,
+  usageCount: Number,
+  createdAt: Date,
+  expiresAt: Date            // Cache expiration
+};
+
+/**
  * Enhanced Truck Model with reservation and sentiment integration
  */
 export const EnhancedTruckModel = {
@@ -29,15 +86,57 @@ export const EnhancedTruckModel = {
     sentimentTrend: String  // 'improving', 'declining', 'stable'
   },
   
-  // Current status and location
+  // Current status and location with enhanced Google Places integration
   status: String,         // 'Available', 'In Transit', 'Loading', 'Unloading', 'Maintenance', 'Reserved'
   currentLocation: {
+    address: String,           // "123 Main St, City, State, Country"
+    formattedAddress: String,  // Google-formatted address
+    latitude: Number,          // Precise coordinates
+    longitude: Number,
+    
+    // Address components for filtering/search
+    addressComponents: {
+      streetNumber: String,
+      route: String,
+      locality: String,        // City
+      administrativeArea: String, // State
+      administrativeAreaLevel2: String, // District
+      country: String,
+      countryCode: String,
+      postalCode: String,
+      sublocality: String
+    },
+    
+    // Google Places metadata
+    placeId: String,           // Google Place ID for reference
+    placeName: String,         // Place name (if applicable)
+    placeTypes: [String],      // e.g., ["establishment", "hospital"]
+    plusCode: String,          // Google Plus Code
+    
+    // Tracking metadata
+    accuracy: Number,          // GPS accuracy in meters
+    timestamp: Date,
+    source: String,            // "manual", "gps", "api", "search"
+    isVerified: Boolean,       // Manual verification flag
+    confidence: Number         // Location confidence score (0-100)
+  },
+  
+  // Location history for analytics and tracking
+  locationHistory: [{
+    address: String,
+    formattedAddress: String,
     latitude: Number,
     longitude: Number,
-    address: String,
+    placeId: String,
+    placeName: String,
+    addressComponents: Object,
     timestamp: Date,
-    accuracy: Number      // GPS accuracy in meters
-  },
+    event: String,             // "pickup", "delivery", "checkpoint", "break", "refuel", "maintenance"
+    source: String,            // "manual", "gps", "api"
+    accuracy: Number,
+    speed: Number,             // Speed at time of location update
+    heading: Number            // Direction of travel (0-360 degrees)
+  }],
   
   // Reservation integration
   isReserved: Boolean,
@@ -313,7 +412,13 @@ export const TruckDataTransformers = {
         customerName: truck.reservationDetails?.customerInfo?.contactName || 'Unknown',
         route: `${truck.reservationDetails?.route?.pickupLocation} → ${truck.reservationDetails?.route?.dropLocation}`,
         pickupDate: truck.reservationDetails?.route?.pickupDate,
-        assignedDriver: truck.reservationDetails?.assignedDriver || truck.driver
+        assignedDriver: truck.reservationDetails?.assignedDriver || truck.driver,
+        checkpoints: truck.reservationDetails?.checkpoints || [],
+        touchpoints: truck.reservationDetails?.touchpoints || [],
+        currentCheckpoint: truck.reservationDetails?.currentCheckpoint || 0,
+        pickupLocation: truck.reservationDetails?.route?.pickupLocation,
+        dropLocation: truck.reservationDetails?.route?.dropLocation,
+        dropDate: truck.reservationDetails?.route?.dropDate
       } : null,
       
       currentLocation: {

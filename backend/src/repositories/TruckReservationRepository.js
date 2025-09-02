@@ -39,12 +39,16 @@ export class TruckReservationRepository extends BaseRepository {
       const conditions = [
         { field: 'businessUid', operator: '==', value: businessUid }
       ];
-      
       if (status) {
         conditions.push({ field: 'status', operator: '==', value: status });
       }
-      
-      return await this.findWhere(conditions, 'createdAt', 'desc');
+      // Avoid composite index requirement: do not orderBy in Firestore; sort in memory
+      const results = await this.findWhere(conditions, null, 'desc');
+      return results.sort((a, b) => {
+        const ta = a?.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a?.createdAt || 0).getTime();
+        const tb = b?.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b?.createdAt || 0).getTime();
+        return tb - ta;
+      });
     } catch (error) {
       console.error('Error finding reservations by business UID:', error);
       throw error;
@@ -58,9 +62,14 @@ export class TruckReservationRepository extends BaseRepository {
    */
   async findByStatus(status) {
     try {
-      return await this.findWhere([
+      const results = await this.findWhere([
         { field: 'status', operator: '==', value: status }
-      ], 'createdAt', 'desc');
+      ], null, 'desc');
+      return results.sort((a, b) => {
+        const ta = a?.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a?.createdAt || 0).getTime();
+        const tb = b?.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b?.createdAt || 0).getTime();
+        return tb - ta;
+      });
     } catch (error) {
       console.error('Error finding reservations by status:', error);
       throw error;
@@ -203,7 +212,7 @@ export class TruckReservationRepository extends BaseRepository {
       const futureDate = new Date();
       futureDate.setDate(now.getDate() + daysAhead);
       
-      const reservations = await this.findByStatus('confirmed');
+  const reservations = await this.findByStatus('confirmed');
       
       return reservations.filter(reservation => {
         return reservation.trucks.some(truck => {

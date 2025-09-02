@@ -31,6 +31,18 @@ class SentimentAnalysisService {
       if (!surveyData || typeof surveyData !== 'object') {
         throw new Error('Valid survey data is required');
       }
+
+      // STRICT ENFORCEMENT: Check monthly submission limit (max 2 per calendar month)
+      const submissionGate = await this.canSubmitSurvey(driverId, 2);
+      if (!submissionGate.allowed) {
+        const resetDate = new Date(submissionGate.resetsAt).toLocaleDateString();
+        // Log security event
+        console.warn(`SECURITY: Driver ${driverId} attempted to exceed monthly sentiment submission limit. Current count: ${2 - submissionGate.remaining}/2`);
+        throw new Error(`Monthly sentiment analysis limit reached. You can only submit ${submissionGate.limit} sentiment surveys per calendar month. Your limit will reset on ${resetDate}. This restriction ensures accurate mood tracking.`);
+      }
+      
+      // Log legitimate submission
+      console.log(`AUDIT: Driver ${driverId} submitting sentiment survey ${3 - submissionGate.remaining}/2 for ${new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`);
       
       // Analyze sentiment using Gemini AI
       let analysisResult;
@@ -194,15 +206,22 @@ class SentimentAnalysisService {
         limit
       );
       
-      return sentimentHistory.map(record => ({
-        id: record.id,
-        score: record.sentimentAnalysis.score,
-        label: record.sentimentAnalysis.label,
-        analysis: record.sentimentAnalysis.analysis,
-        recommendations: record.sentimentAnalysis.recommendations,
-        submittedAt: record.surveyData.submittedAt,
-        createdAt: record.createdAt
-      }));
+      return sentimentHistory.map(record => {
+        const createdAtIso = record.createdAt?.toDate?.()
+          ? record.createdAt.toDate().toISOString()
+          : (typeof record.createdAt === 'string' && !isNaN(Date.parse(record.createdAt))
+              ? new Date(record.createdAt).toISOString()
+              : (record.surveyData?.submittedAt || new Date().toISOString()));
+        return {
+          id: record.id,
+          score: record.sentimentAnalysis.score,
+          label: record.sentimentAnalysis.label,
+          analysis: record.sentimentAnalysis.analysis,
+          recommendations: record.sentimentAnalysis.recommendations,
+          submittedAt: record.surveyData.submittedAt,
+          createdAt: createdAtIso
+        };
+      });
       
     } catch (error) {
       console.error('Error fetching sentiment history:', error);
@@ -223,15 +242,22 @@ class SentimentAnalysisService {
             .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
             .slice(0, limit);
           
-          return sortedRecords.map(record => ({
-            id: record.id,
-            score: record.sentimentAnalysis.score,
-            label: record.sentimentAnalysis.label,
-            analysis: record.sentimentAnalysis.analysis,
-            recommendations: record.sentimentAnalysis.recommendations,
-            submittedAt: record.surveyData.submittedAt,
-            createdAt: record.createdAt
-          }));
+          return sortedRecords.map(record => {
+            const createdAtIso = record.createdAt?.toDate?.()
+              ? record.createdAt.toDate().toISOString()
+              : (typeof record.createdAt === 'string' && !isNaN(Date.parse(record.createdAt))
+                  ? new Date(record.createdAt).toISOString()
+                  : (record.surveyData?.submittedAt || new Date().toISOString()));
+            return {
+              id: record.id,
+              score: record.sentimentAnalysis.score,
+              label: record.sentimentAnalysis.label,
+              analysis: record.sentimentAnalysis.analysis,
+              recommendations: record.sentimentAnalysis.recommendations,
+              submittedAt: record.surveyData.submittedAt,
+              createdAt: createdAtIso
+            };
+          });
         } catch (fallbackError) {
           console.error('Fallback query also failed:', fallbackError);
           throw new Error(`Failed to fetch sentiment history: ${error.message}`);
@@ -285,6 +311,66 @@ class SentimentAnalysisService {
       console.error('Error getting current sentiment:', error);
       throw new Error(`Failed to get current sentiment: ${error.message}`);
     }
+  }
+
+  /**
+   * Get the number of submissions for the current calendar month
+   * @param {string} driverId
+   * @param {Date} [date]
+   * @returns {Promise<number>}
+   */
+  async getMonthlySubmissionCount(driverId, date = new Date()) {
+    try {
+      const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+      const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const conditions = [
+        { field: 'driverId', operator: '==', value: driverId },
+        { field: 'createdAt', operator: '>=', value: startOfMonth },
+        { field: 'createdAt', operator: '<=', value: endOfMonth }
+      ];
+
+      try {
+        const records = await this.sentimentRepo.findWhere(conditions);
+        return records.length;
+      } catch (idxError) {
+        // Likely missing composite index, fallback to simpler query then filter in memory
+        if (idxError.code === 'failed-precondition' && (idxError.message || '').includes('index')) {
+          const base = await this.sentimentRepo.findWhere([
+            { field: 'driverId', operator: '==', value: driverId }
+          ]);
+          return base.filter(r => {
+            const ts = r.createdAt?.toDate ? r.createdAt.toDate() : new Date(r.createdAt || r.surveyData?.submittedAt);
+            return ts >= startOfMonth && ts <= endOfMonth;
+          }).length;
+        }
+        throw idxError;
+      }
+    } catch (error) {
+      console.error('Error counting monthly submissions:', error);
+      // Fail-safe: Return a high number to prevent submission if query fails
+      // This ensures the 2-per-month limit is strictly enforced even on system errors
+      console.warn('Monthly submission count query failed - denying submission for security');
+      return 999; // This will always make canSubmitSurvey return false when there's a system error
+    }
+  }
+
+  /**
+   * Check whether a driver can submit a survey this month
+   * @param {string} driverId
+   * @param {number} limitPerMonth
+   * @returns {Promise<{allowed: boolean, remaining: number, limit: number, resetsAt: string}>}
+   */
+  async canSubmitSurvey(driverId, limitPerMonth = 2) {
+    const count = await this.getMonthlySubmissionCount(driverId);
+    const allowed = count < limitPerMonth;
+    const resetsAt = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toISOString();
+    return {
+      allowed,
+      remaining: Math.max(0, limitPerMonth - count),
+      limit: limitPerMonth,
+      resetsAt
+    };
   }
 
   /**

@@ -367,9 +367,9 @@ class WebSocketService {
     console.log(`Broadcasted status update for vehicle ${vehicleId}: ${status}`);
   }
 
+  // Enhanced alert broadcasting with SOS priority handling
   broadcastAlert(alert) {
-    // Broadcast to all alert subscribers
-    this.io.to('alert_updates').emit('new_alert', {
+    const alertData = {
       alertId: alert.id,
       type: alert.alertType,
       severity: alert.severity,
@@ -379,24 +379,49 @@ class WebSocketService {
         latitude: alert.locationLat,
         longitude: alert.locationLng
       } : null,
-      timestamp: alert.createdAt
-    });
+      timestamp: alert.createdAt,
+      metadata: alert.metadata || {}
+    };
 
-    // Also broadcast to fleet managers
-    this.io.to('fleet_managers').emit('new_alert', {
-      alertId: alert.id,
-      type: alert.alertType,
-      severity: alert.severity,
-      vehicleId: alert.vehicleId,
-      message: alert.message,
-      location: alert.locationLat && alert.locationLng ? {
-        latitude: alert.locationLat,
-        longitude: alert.locationLng
-      } : null,
-      timestamp: alert.createdAt
-    });
+    // Special handling for SOS alerts
+    if (alert.alertType === 'SOS') {
+      // Broadcast SOS with highest priority to all relevant parties
+      console.log('🚨 EMERGENCY SOS ALERT - Broadcasting with highest priority');
+      
+      // Send to ALL fleet managers immediately
+      this.io.to('fleet_managers').emit('emergency_sos_alert', {
+        ...alertData,
+        priority: 'EMERGENCY',
+        requiresImmedateAction: true,
+        emergencyProtocol: true
+      });
+      
+      // Send to super admins with emergency priority
+      this.broadcastToRoom('super_admin', 'emergency_sos_alert', {
+        ...alertData,
+        priority: 'EMERGENCY',
+        requiresImmedateAction: true,
+        emergencyProtocol: true
+      });
+      
+      // Also send as regular alert for compatibility
+      this.io.to('alert_updates').emit('new_alert', {
+        ...alertData,
+        isSOS: true,
+        priority: 'EMERGENCY'
+      });
+      
+      console.log(`🚨 EMERGENCY SOS ALERT broadcasted for vehicle ${alert.vehicleId}`);
+    } else {
+      // Regular alert broadcasting
+      // Broadcast to all alert subscribers
+      this.io.to('alert_updates').emit('new_alert', alertData);
 
-    console.log(`Broadcasted new alert: ${alert.alertType} for vehicle ${alert.vehicleId}`);
+      // Also broadcast to fleet managers
+      this.io.to('fleet_managers').emit('new_alert', alertData);
+      
+      console.log(`Broadcasted new alert: ${alert.alertType} for vehicle ${alert.vehicleId}`);
+    }
   }
 
   broadcastAlertAcknowledged(alertId, acknowledgedBy) {

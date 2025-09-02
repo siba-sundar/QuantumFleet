@@ -131,7 +131,7 @@ export class BaseRepository {
         q = query(q, where(condition.field, condition.operator, condition.value));
       });
       
-      // Apply ordering
+  // Apply ordering (note: combining multiple where fields with orderBy may require a composite index)
       if (orderByField) {
         q = query(q, orderBy(orderByField, orderDirection));
       }

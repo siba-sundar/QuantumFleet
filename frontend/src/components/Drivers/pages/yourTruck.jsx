@@ -1,0 +1,1543 @@
+import { useState, useEffect, useMemo } from "react";
+import { fetchEnhancedFleet } from '../../../utils/api'
+import { useAuth } from '../../../hooks/useAuth.jsx';
+import alertService from '../../../services/AlertManagementService.js';
+import { MapPin, AlertTriangle, Clock, Truck, Navigation, Bell, CheckCircle, X } from 'lucide-react';
+
+function TruckDetails() {
+  const { user } = useAuth();
+  const [trucks, setTrucks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [alerts, setAlerts] = useState([]);
+  const [sosSending, setSosSending] = useState(false);
+  const [showSOSDialog, setShowSOSDialog] = useState(false);
+  const [sosType, setSOSType] = useState('general');
+  const [sosMessage, setSOSMessage] = useState('');
+  const [sosUrgency, setSOSUrgency] = useState('high');
+  const [incomingAlerts, setIncomingAlerts] = useState([]);
+  const [showIncomingAlerts, setShowIncomingAlerts] = useState(false);
+  const [driverProfile, setDriverProfile] = useState(null);
+
+  // Subscribe to real-time alerts for driver
+  useEffect(() => {
+    if (user?.uid) {
+      const unsubscribe = alertService.subscribeToAlerts(
+        user.uid,
+        'driver',
+        (newAlerts) => {
+          // Filter for dispatch instructions and route updates
+          const driverAlerts = newAlerts.filter(alert => 
+            ['dispatch_instructions', 'route_update'].includes(alert.type) &&
+            alert.status === 'active'
+          );
+          setIncomingAlerts(driverAlerts);
+        }
+      );
+      
+      return unsubscribe;
+    }
+  }, [user?.uid]);
+
+  // Load trucks and alerts
+  useEffect(() => {
+    let mounted = true;
+    
+    const loadDriverTruckData = async () => {
+      try {
+        setLoading(true);
+        
+        // Load driver profile first to get professional truck assignment
+        let driverData = null;
+        if (user?.uid) {
+          try {
+            const profileResponse = await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:4001'}/api/driver-profiles/${user.uid}`);
+            if (profileResponse.ok) {
+              const profileData = await profileResponse.json();
+              driverData = profileData.profile;
+              if (mounted) setDriverProfile(driverData);
+            }
+          } catch (error) {
+            console.warn('Error loading driver profile:', error);
+          }
+        }
+        
+        // Use enhanced fleet to get proper driver assignments and reservation data
+        const fleetData = await fetchEnhancedFleet(true, true);
+        
+        // Also fetch truck reservations directly to get complete checkpoint data
+        let reservationData = null;
+        if (user?.uid) {
+          try {
+            const reservationResponse = await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:4001'}/api/reservations/driver/${user.uid}`);
+            if (reservationResponse.ok) {
+              const resData = await reservationResponse.json();
+              reservationData = resData.reservation;
+            }
+          } catch (error) {
+            console.warn('Error loading driver reservation data:', error);
+          }
+        }
+        
+        if (mounted) {
+          // Merge reservation data with truck data if available
+          let enhancedTrucks = fleetData.trucks || [];
+          if (reservationData && enhancedTrucks.length > 0) {
+            enhancedTrucks = enhancedTrucks.map(truck => {
+              // If this truck matches the reservation, enhance it with complete checkpoint data
+              if (reservationData.trucks?.[0]?.assignedDriver?.id === user?.uid) {
+                return {
+                  ...truck,
+                  reservationDetails: {
+                    ...truck.reservationDetails,
+                    checkpoints: reservationData.trucks[0].checkpoints || [],
+                    route: {
+                      ...truck.reservationDetails?.route,
+                      pickupLocation: reservationData.trucks[0].pickupLocation,
+                      dropLocation: reservationData.trucks[0].dropLocation,
+                      pickupDate: reservationData.trucks[0].pickupDate,
+                      dropDate: reservationData.trucks[0].dropDate,
+                    },
+                    // Include the coordinate data from reservation
+                    pickupLocationData: reservationData.trucks[0].pickupLocationData,
+                    dropLocationData: reservationData.trucks[0].dropLocationData,
+                    customerInfo: reservationData.customerInfo,
+                    totalCost: reservationData.totalCost,
+                    paymentStatus: reservationData.paymentStatus
+                  },
+                  // Also add coordinate data at truck level for easier access
+                  pickupLocationData: reservationData.trucks[0].pickupLocationData,
+                  dropLocationData: reservationData.trucks[0].dropLocationData
+                };
+              }
+              return truck;
+            });
+          }
+          
+          setTrucks(enhancedTrucks);
+          
+          // Log assignment details for debugging
+          if (user?.uid && enhancedTrucks) {
+            const directMatch = enhancedTrucks.find(t => t.driver?.id === user.uid);
+            const reservationMatch = enhancedTrucks.find(t => t.reservationSummary?.assignedDriver?.id === user.uid);
+            const professionalMatch = driverData?.professionalInfo?.truckId ? 
+              enhancedTrucks.find(t => 
+                t.id === driverData.professionalInfo.truckId || 
+                t.number === driverData.professionalInfo.truckId
+              ) : null;
+            
+            // Debug checkpoint data for matched trucks
+            [directMatch, reservationMatch, professionalMatch].forEach((truck) => {
+              if (truck && process.env.NODE_ENV === 'development') {
+                // Debug info available in development mode
+              }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error loading enhanced fleet:', error);
+        if (mounted) setTrucks([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    
+    loadDriverTruckData();
+    
+    // Fetch active alerts (optimized routes) for driver truck
+  fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:4001'}/api/alerts`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(json => { if (mounted) setAlerts(json.alerts || []); })
+      .catch(() => { if (mounted) setAlerts([]); });
+    
+    return () => { mounted = false; };
+  }, [user?.uid]);
+
+  // Determine the driver-assigned truck: comprehensive assignment matching
+  const selectedTruck = useMemo(() => {
+    if (!trucks?.length || !user?.uid) {
+      return null;
+    }
+    
+    // Method 1: Check direct driver assignment on truck object
+    const directAssignment = trucks.find(t => t.driver?.id === user.uid);
+    
+    if (directAssignment) {
+      return directAssignment;
+    }
+    
+    // Method 2: Check reservation-based assignment (most important for business reservations)
+    const reservationAssignment = trucks.find(t => {
+      const isReservationDriver = t.reservationSummary?.assignedDriver?.id === user.uid ||
+                                  t.reservationDetails?.assignedDriver?.id === user.uid;
+      return isReservationDriver;
+    });
+    
+    if (reservationAssignment) {
+      return reservationAssignment;
+    }
+    
+    // Method 3: Check professional info truck assignment
+    if (driverProfile?.professionalInfo?.truckId) {
+      const assignedTruckId = driverProfile.professionalInfo.truckId;
+      const professionalTruck = trucks.find(t => 
+        t.id === assignedTruckId || 
+        t.number === assignedTruckId ||
+        t.truckId === assignedTruckId ||
+        t.licensePlate === assignedTruckId
+      );
+      
+      if (professionalTruck) {
+        return professionalTruck;
+      }
+    }
+    
+    // Method 4: Check driver profile availability assignment (from driver assignment API)
+    const availabilityAssignment = trucks.find(t => {
+      // Check if this truck matches the driver's availability.currentTruck
+      const matchesAvailability = driverProfile?.availability?.currentTruck === t.id ||
+                                  driverProfile?.availability?.currentTruck === t.number;
+      return matchesAvailability;
+    });
+    
+    if (availabilityAssignment) {
+      return availabilityAssignment;
+    }
+    
+    // Method 5: Check for name-based matching (fallback)
+    if (driverProfile?.personalInfo) {
+      const driverName = `${driverProfile.personalInfo.firstName || ''} ${driverProfile.personalInfo.lastName || ''}`.trim();
+      if (driverName) {
+        const nameMatch = trucks.find(t => 
+          t.driver?.name && t.driver.name.toLowerCase().includes(driverName.toLowerCase())
+        );
+        
+        if (nameMatch) {
+          return nameMatch;
+        }
+      }
+    }
+    
+    return null;
+  }, [trucks, user?.uid, driverProfile]);
+
+  const truckDetails = useMemo(() => {
+    // Get truck details from various sources with priority:
+    // 1. Selected truck data (from fleet/reservation)
+    // 2. Driver profile truckInfo (from signup)
+    // 3. Professional info (backup)
+    
+    let licensePlate = 'Unknown';
+    let model = 'N/A';
+    let lastMaintenance = 'N/A';
+    let driverName = 'Unknown';
+    
+    // Primary: Get from selected truck
+    if (selectedTruck) {
+      licensePlate = selectedTruck.licensePlate || selectedTruck.number || selectedTruck.plate || licensePlate;
+      model = selectedTruck.model || model;
+      if (selectedTruck.year) {
+        model += ` (${selectedTruck.year})`;
+      }
+      driverName = selectedTruck.driver?.name || selectedTruck.reservationSummary?.assignedDriver?.name || driverName;
+      
+      // Try to get maintenance from truck data
+      if (selectedTruck.maintenance?.lastServiceDate) {
+        lastMaintenance = new Date(selectedTruck.maintenance.lastServiceDate).toLocaleDateString();
+      } else if (selectedTruck.lastMaintenanceDate) {
+        lastMaintenance = new Date(selectedTruck.lastMaintenanceDate).toLocaleDateString();
+      }
+    }
+    
+    // Secondary: Get from driver profile truckInfo (signup data)
+    if (driverProfile?.truckInfo) {
+      const truckInfo = driverProfile.truckInfo;
+      
+      // Use driver's truck info if truck data is not complete
+      if (licensePlate === 'Unknown' && truckInfo.licensePlate) {
+        licensePlate = truckInfo.licensePlate;
+      }
+      
+      if (model === 'N/A' && truckInfo.model) {
+        model = truckInfo.model;
+        if (truckInfo.year) {
+          model += ` (${truckInfo.year})`;
+        }
+      }
+      
+      if (lastMaintenance === 'N/A' && truckInfo.lastMaintenanceDate) {
+        lastMaintenance = new Date(truckInfo.lastMaintenanceDate).toLocaleDateString();
+      }
+    }
+    
+    // Tertiary: Get from professional info
+    if (driverProfile?.professionalInfo) {
+      const profInfo = driverProfile.professionalInfo;
+      
+      if (lastMaintenance === 'N/A' && profInfo.lastMaintenanceDate) {
+        lastMaintenance = new Date(profInfo.lastMaintenanceDate).toLocaleDateString();
+      }
+    }
+    
+    // Get driver name from profile if not available from truck
+    if (driverName === 'Unknown' && driverProfile?.personalInfo) {
+      const personalInfo = driverProfile.personalInfo;
+      if (personalInfo.firstName && personalInfo.lastName) {
+        driverName = `${personalInfo.firstName} ${personalInfo.lastName}`;
+      } else if (personalInfo.firstName) {
+        driverName = personalInfo.firstName;
+      }
+    }
+    
+    return {
+      licensePlate,
+      model,
+      lastMaintenance,
+      driver: driverName,
+      deliveryStatus: selectedTruck?.status || 'In Transit',
+      maxLoad: selectedTruck?.maxCapacity || driverProfile?.truckInfo?.capacity || 0,
+      currentLoad: selectedTruck?.currentLoad || 0,
+      capacity: selectedTruck?.capacity || driverProfile?.truckInfo?.capacity || 'N/A'
+    };
+  }, [selectedTruck, driverProfile]);
+
+  const routeInfo = useMemo(() => {
+    // Priority order for route information:
+    // 1. Direct route on truck object
+    // 2. Reservation summary route
+    // 3. Reservation details route
+    
+    
+    if (selectedTruck?.route) {
+      return selectedTruck.route;
+    }
+    
+    if (selectedTruck?.reservationSummary) {
+      const summary = selectedTruck.reservationSummary;
+      // Convert summary to route format
+      const routeFromSummary = {
+        pickupLocation: summary.route?.split(' → ')[0] || summary.pickupLocation,
+        dropLocation: summary.route?.split(' → ')[1] || summary.dropLocation,
+        pickupDate: summary.pickupDate,
+        customerName: summary.customerName,
+        checkpoints: summary.checkpoints || [],
+        touchpoints: summary.touchpoints || [],
+        currentCheckpoint: summary.currentCheckpoint || 0
+      };
+      return routeFromSummary;
+    }
+    
+    if (selectedTruck?.reservationDetails) {
+      const details = selectedTruck.reservationDetails;
+      
+      // Enhanced route processing from reservation details
+      const routeFromDetails = {
+        pickupLocation: details.route?.pickupLocation || details.pickupLocation,
+        dropLocation: details.route?.dropLocation || details.dropLocation,
+        pickupDate: details.route?.pickupDate || details.pickupDate,
+        dropDate: details.route?.dropDate || details.dropDate,
+        customerName: details.customerInfo?.contactName || details.customerName,
+        
+        // Include coordinate data for Google Maps
+        pickupLocationData: details.pickupLocationData || details.route?.pickupLocationData,
+        dropLocationData: details.dropLocationData || details.route?.dropLocationData,
+        
+        // Process checkpoints from reservation - handle both array and indexed object format
+        checkpoints: (() => {
+          let checkpoints = [];
+          
+          // Handle direct checkpoints array (Firebase structure)
+          if (Array.isArray(details.checkpoints)) {
+            checkpoints = details.checkpoints;
+          }
+          // Handle indexed object format (Firebase sometimes stores arrays as objects)
+          else if (details.checkpoints && typeof details.checkpoints === 'object') {
+            // Convert indexed object to array
+            checkpoints = Object.keys(details.checkpoints)
+              .sort((a, b) => parseInt(a) - parseInt(b)) // Sort by index
+              .map(key => details.checkpoints[key]);
+          }
+          // Handle route.checkpoints
+          else if (details.route?.checkpoints) {
+            checkpoints = Array.isArray(details.route.checkpoints) 
+              ? details.route.checkpoints 
+              : Object.values(details.route.checkpoints || {});
+          }
+          // Handle reservation data structure where checkpoints might be nested deeper
+          else if (details.reservationId) {
+            // This is likely a reservation-based truck, checkpoints should be in the reservation data
+          }
+          
+          return checkpoints;
+        })(),
+        
+        touchpoints: details.touchpoints || details.route?.touchpoints || [],
+        currentCheckpoint: details.currentCheckpoint || 0,
+        
+        // Additional route metadata
+        estimatedDistance: details.route?.estimatedDistance,
+        estimatedDuration: details.route?.estimatedDuration,
+        totalCost: details.totalCost,
+        paymentStatus: details.paymentStatus
+      };
+      
+      return routeFromDetails;
+    }
+    
+    return null;
+  }, [selectedTruck]);
+
+  const currentLocation = useMemo(() => {
+    // Try to get current location from truck data first
+    if (selectedTruck?.currentLocation) {
+      return selectedTruck.currentLocation;
+    }
+    
+    if (selectedTruck?.location) {
+      return selectedTruck.location;
+    }
+    
+    // If no current location, try to use pickup location as fallback
+    if (selectedTruck?.reservationDetails?.pickupLocationData?.coordinates) {
+      const pickup = selectedTruck.reservationDetails.pickupLocationData.coordinates;
+      return {
+        lat: pickup.lat,
+        lng: pickup.lng,
+        address: selectedTruck.reservationDetails.pickupLocation || 'Pickup Location'
+      };
+    }
+    
+    // Final fallback - return null to indicate no location available
+    return null;
+  }, [selectedTruck]);
+
+  const nextCheckpoint = useMemo(() => {
+    const cps = routeInfo?.checkpoints || routeInfo?.touchpoints || [];
+    const idx = routeInfo?.currentCheckpoint ?? 0;
+    return cps[idx] || null;
+  }, [routeInfo]);
+
+  const upcomingCheckpoints = useMemo(() => {
+    const cps = routeInfo?.checkpoints || routeInfo?.touchpoints || [];
+    const idx = (routeInfo?.currentCheckpoint ?? 0) + 1;
+    return cps.slice(idx, idx + 3);
+  }, [routeInfo]);
+
+  // Create checkpoints array for the Location component with proper structure
+  const checkpointsForDisplay = useMemo(() => {
+    const cps = routeInfo?.checkpoints || routeInfo?.touchpoints || [];
+    const currentIdx = routeInfo?.currentCheckpoint ?? 0;
+    
+    return cps.map((cp, index) => {
+      // Handle different checkpoint data structures
+      let checkpointName = 'Checkpoint';
+      let checkpointETA = 'TBA';
+      let checkpointDetails = {};
+      
+      if (typeof cp === 'string') {
+        checkpointName = cp;
+      } else if (cp && typeof cp === 'object') {
+        // Handle Firebase checkpoint structure (like in your database)
+        if (cp.location) {
+          checkpointName = cp.location;
+        } else if (cp.locationData?.address) {
+          checkpointName = cp.locationData.address;
+        } else if (cp.name) {
+          checkpointName = cp.name;
+        } else {
+          checkpointName = `Checkpoint ${index + 1}`;
+        }
+        
+        // Extract additional details from Firebase structure
+        checkpointETA = cp.date || cp.eta || cp.arrivalTime || cp.estimatedArrival || 'TBA';
+        checkpointDetails = {
+          goodsType: cp.goodsType,
+          weight: cp.weight ? `${cp.weight} kg` : null,
+          handlingInstructions: cp.handlingInstructions,
+          date: cp.date,
+          dropDate: cp.dropDate
+        };
+      }
+      
+      return {
+        name: checkpointName,
+        position: `${((index + 1) / cps.length) * 100}%`,
+        completed: index < currentIdx,
+        isCurrent: index === currentIdx,
+        eta: checkpointETA,
+        details: checkpointDetails
+      };
+    });
+  }, [routeInfo]);
+
+  // Generate Google Maps Embed URL with directions and waypoints
+  const googleMapsEmbedData = useMemo(() => {
+    if (!routeInfo) {
+      return null;
+    }
+    
+    // Get pickup location coordinates - multiple possible paths
+    let pickup = null;
+    
+    // Try different paths for pickup coordinates based on database structure
+    if (routeInfo?.pickupLocationData?.coordinates) {
+      pickup = routeInfo.pickupLocationData.coordinates;
+    } else if (selectedTruck?.reservationDetails?.pickupLocationData?.coordinates) {
+      pickup = selectedTruck.reservationDetails.pickupLocationData.coordinates;
+    } else if (selectedTruck?.pickupLocationData?.coordinates) {
+      pickup = selectedTruck.pickupLocationData.coordinates;
+    }
+    
+    // Get drop location coordinates - multiple possible paths  
+    let drop = null;
+    
+    if (routeInfo?.dropLocationData?.coordinates) {
+      drop = routeInfo.dropLocationData.coordinates;
+    } else if (selectedTruck?.reservationDetails?.dropLocationData?.coordinates) {
+      drop = selectedTruck.reservationDetails.dropLocationData.coordinates;
+    } else if (selectedTruck?.dropLocationData?.coordinates) {
+      drop = selectedTruck.dropLocationData.coordinates;
+    }
+    
+    // Get checkpoint coordinates
+    const checkpoints = routeInfo?.checkpoints || [];
+    
+    // Create waypoints array for map display
+    const waypoints = [];
+    
+    // Add pickup location
+    if (pickup) {
+      waypoints.push({
+        lat: pickup.lat,
+        lng: pickup.lng,
+        name: routeInfo.pickupLocation || 'Pickup Location',
+        type: 'pickup'
+      });
+    }
+    
+    // Add all checkpoints
+    checkpoints.forEach((cp, index) => {
+      if (cp?.locationData?.coordinates) {
+        waypoints.push({
+          lat: cp.locationData.coordinates.lat,
+          lng: cp.locationData.coordinates.lng,
+          name: cp.location || cp.locationData.address || `Checkpoint ${index + 1}`,
+          type: 'checkpoint',
+          details: {
+            goodsType: cp.goodsType,
+            weight: cp.weight,
+            handlingInstructions: cp.handlingInstructions,
+            date: cp.date
+          }
+        });
+      }
+    });
+    
+    // Add drop location
+    if (drop) {
+      waypoints.push({
+        lat: drop.lat,
+        lng: drop.lng,
+        name: routeInfo.dropLocation || 'Drop Location',
+        type: 'drop'
+      });
+    }
+    
+    if (waypoints.length === 0) {
+      return null;
+    }
+    
+    // Calculate center point for the map
+    const center = {
+      lat: waypoints.reduce((sum, wp) => sum + wp.lat, 0) / waypoints.length,
+      lng: waypoints.reduce((sum, wp) => sum + wp.lng, 0) / waypoints.length
+    };
+    
+    // Generate Google Maps Embed URL (this one allows iframe embedding)
+    const embedBaseUrl = 'https://www.google.com/maps/embed/v1/directions';
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || 'YOUR_API_KEY_HERE'; // Add your API key to .env file
+    
+    let embedUrl = null;
+    let externalUrl = null;
+    
+    if (pickup && drop && apiKey !== 'YOUR_API_KEY_HERE') {
+      // Google Maps Embed API URL
+      embedUrl = `${embedBaseUrl}?key=${apiKey}`;
+      embedUrl += `&origin=${pickup.lat},${pickup.lng}`;
+      embedUrl += `&destination=${drop.lat},${drop.lng}`;
+      
+      // Add waypoints (checkpoints) - Google Maps Embed API supports up to 25 waypoints
+      const checkpointCoords = checkpoints
+        .map(cp => cp?.locationData?.coordinates)
+        .filter(Boolean)
+        .map(coord => `${coord.lat},${coord.lng}`)
+        .slice(0, 23); // Leave room for origin and destination
+      
+      if (checkpointCoords.length > 0) {
+        embedUrl += `&waypoints=${checkpointCoords.join('|')}`;
+      }
+      
+      embedUrl += '&mode=driving&language=en&region=in';
+      
+      // Create external URL for "Open in Maps" button
+      const coords = waypoints.map(wp => `${wp.lat},${wp.lng}`);
+      externalUrl = `https://www.google.com/maps/dir/${coords.join('/')}?hl=en&gl=in`;
+    } else if (pickup && drop) {
+      // Fallback: Use location names instead of coordinates if no API key
+      const locations = waypoints.map(wp => encodeURIComponent(wp.name));
+      externalUrl = `https://www.google.com/maps/dir/${locations.join('/')}?hl=en&gl=in`;
+      
+      // Create a simple embedded map showing the route area
+      embedUrl = `https://www.google.com/maps?q=${pickup.lat},${pickup.lng}&output=embed&zoom=10`;
+    }
+    
+    return {
+      embedUrl,
+      externalUrl,
+      waypoints,
+      center,
+      hasValidData: waypoints.length >= 2
+    };
+  }, [routeInfo, selectedTruck]);
+
+  const handleSOS = () => {
+    setShowSOSDialog(true);
+  };
+
+  const sendSOSAlert = async () => {
+    if (!selectedTruck?.id || !user?.uid) {
+      setSosSending(false);
+      const missingInfo = [];
+      if (!selectedTruck?.id) missingInfo.push('truck information');
+      if (!user?.uid) missingInfo.push('user authentication');
+      
+      alert(`Missing ${missingInfo.join(' and ')}. Please refresh the page and try again.`);
+      return;
+    }
+    
+    setSosSending(true);
+    
+    // Set up a timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('SOS alert request timed out after 10 seconds'));
+      }, 10000); // 10 second timeout
+    });
+    
+    try {
+      const emergencyTypes = {
+        general: 'Emergency SOS Alert from driver',
+        accident: 'ACCIDENT - Emergency assistance required immediately',
+        breakdown: 'VEHICLE BREAKDOWN - Unable to continue route',
+        medical: 'MEDICAL EMERGENCY - Driver requires immediate medical assistance',
+        security: 'SECURITY THREAT - Driver in danger, immediate intervention required',
+        weather: 'WEATHER EMERGENCY - Unsafe driving conditions, stranded',
+        route: 'ROUTE EMERGENCY - Lost or unable to access destination'
+      };
+
+      const finalMessage = sosMessage.trim() || emergencyTypes[sosType];
+      const location = currentLocation || { lat: null, lng: null };
+      
+      // Race between the actual call and the timeout
+      const sosPromise = alertService.sendSOSAlert(
+        user.uid,
+        selectedTruck.id,
+        location,
+        finalMessage,
+        {
+          emergencyType: sosType,
+          urgencyLevel: sosUrgency,
+          driverName: `${user?.displayName || user?.email || 'Driver'}`,
+          vehicleInfo: {
+            licensePlate: truckDetails.licensePlate,
+            model: truckDetails.model
+          },
+          routeInfo: routeInfo ? {
+            pickupLocation: routeInfo.pickupLocation,
+            dropLocation: routeInfo.dropLocation,
+            customerName: routeInfo.customerName
+          } : null,
+          timestamp: new Date().toISOString()
+        }
+      );
+      
+      const result = await Promise.race([sosPromise, timeoutPromise]);
+      
+      if (result.success) {
+        setShowSOSDialog(false);
+        setSOSMessage('');
+        setSOSType('general');
+        setSOSUrgency('high');
+        setSosSending(false); // Ensure sending state is reset on success
+        
+        // Show success notification
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-green-500 text-white p-4 rounded-lg shadow-lg z-50 max-w-sm';
+        notification.innerHTML = `
+          <div class="flex items-center">
+            <div class="bg-white rounded-full p-1 mr-3">
+              <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            <div>
+              <div class="font-semibold">SOS Alert Sent Successfully!</div>
+              <div class="text-sm opacity-90">Fleet Manager and Super Admin have been notified immediately.</div>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 5000);
+      } else {
+        setSosSending(false); // Reset sending state on failure
+        alert('Failed to send SOS alert: ' + (result.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('SOS Error Details:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        name: error.name
+      });
+      
+      let errorMessage = 'Failed to send SOS alert. ';
+      
+      if (error.message.includes('timeout')) {
+        errorMessage += 'Request timed out after 10 seconds. Please check your internet connection and try again.';
+      } else if (error.message.includes('permission')) {
+        errorMessage += 'Permission denied. Please check your Firebase permissions.';
+      } else if (error.message.includes('network')) {
+        errorMessage += 'Network error. Please check your internet connection.';
+      } else if (error.message.includes('firebase')) {
+        errorMessage += 'Database connection error. Please try again in a moment.';
+      } else {
+        errorMessage += `Error: ${error.message}`;
+      }
+      
+      setSosSending(false); // Reset sending state on error
+      alert(errorMessage);
+    } finally {
+      setSosSending(false); // Always reset sending state
+    }
+  };
+
+  // Handle delay report
+  const handleDelayReport = async (delayReason, estimatedDelay) => {
+    if (!selectedTruck?.id || !user?.uid) return;
+    
+    try {
+      const result = await alertService.sendDelayAlert(
+        user.uid,
+        selectedTruck.id,
+        delayReason,
+        estimatedDelay,
+        currentLocation
+      );
+      
+      if (result.success) {
+        alert('Delay report sent successfully!');
+      }
+    } catch (error) {
+      console.error('Error sending delay report:', error);
+    }
+  };
+
+  // Acknowledge incoming alert
+  const acknowledgeAlert = async (alertId) => {
+    try {
+      await alertService.acknowledgeAlert(alertId, user?.email || 'Driver');
+      setIncomingAlerts(prev => prev.filter(alert => alert.id !== alertId));
+    } catch (error) {
+      console.error('Error acknowledging alert:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading truck information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!selectedTruck) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center max-w-4xl mx-auto p-6">
+          <Truck className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">No truck assigned to your account</h2>
+          <p className="text-gray-600 text-lg mb-6">Your truck assignment should appear here when a business client reserves a truck for you.</p>
+          
+          {/* Enhanced Debug Information */}
+          <div className="bg-white rounded-lg shadow-lg p-6 text-left">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center">Assignment Debug Information</h3>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Driver Information */}
+              <div className="bg-blue-50 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-800 mb-3">Driver Profile</h4>
+                <div className="space-y-2 text-sm">
+                  <p><strong>User ID:</strong> {user?.uid || 'none'}</p>
+                  <p><strong>Email:</strong> {user?.email || 'none'}</p>
+                  <p><strong>Professional Truck ID:</strong> {driverProfile?.professionalInfo?.truckId || 'none'}</p>
+                  <p><strong>Driver Name:</strong> {
+                    driverProfile?.personalInfo?.firstName && driverProfile?.personalInfo?.lastName
+                      ? `${driverProfile.personalInfo.firstName} ${driverProfile.personalInfo.lastName}`
+                      : 'Not set'
+                  }</p>
+                  <p><strong>Registration Status:</strong> {driverProfile?.registrationStatus || 'unknown'}</p>
+                  {driverProfile?.availability && (
+                    <div className="mt-2 pt-2 border-t border-blue-200">
+                      <p><strong>Availability Status:</strong> {driverProfile.availability.status || 'unknown'}</p>
+                      <p><strong>Current Truck:</strong> {driverProfile.availability.currentTruck || 'none'}</p>
+                      <p><strong>Current Reservation:</strong> {driverProfile.availability.currentReservation || 'none'}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Fleet Information */}
+              <div className="bg-green-50 rounded-lg p-4">
+                <h4 className="font-semibold text-green-800 mb-3">Fleet Status</h4>
+                <div className="space-y-2 text-sm">
+                  <p><strong>Total Trucks Available:</strong> {trucks?.length || 0}</p>
+                  <p><strong>Reserved Trucks:</strong> {trucks?.filter(t => t.isReserved).length || 0}</p>
+                  <p><strong>Trucks with Assigned Drivers:</strong> {trucks?.filter(t => t.driver?.id || t.reservationSummary?.assignedDriver?.id).length || 0}</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Available Trucks Details */}
+            {trucks?.length > 0 && (
+              <div className="mt-6">
+                <details className="bg-gray-50 rounded-lg p-4">
+                  <summary className="font-semibold text-gray-800 cursor-pointer hover:text-gray-600">
+                    🚛 Available Trucks ({trucks.length}) - Click to expand
+                  </summary>
+                  <div className="mt-4 space-y-3 max-h-64 overflow-y-auto">
+                    {trucks.map((truck, index) => (
+                      <div key={truck.id} className="bg-white rounded p-3 border border-gray-200">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+                          <div>
+                            <span className="font-medium text-gray-600">Truck:</span>
+                            <p className="font-bold">{truck.number || truck.id}</p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-600">Status:</span>
+                            <p className={`font-bold ${
+                              truck.isReserved ? 'text-blue-600' : 
+                              truck.status === 'Available' ? 'text-green-600' : 'text-gray-600'
+                            }`}>{truck.status}{truck.isReserved ? ' (Reserved)' : ''}</p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-600">Direct Driver:</span>
+                            <p className="font-bold">{truck.driver?.name || 'Unassigned'}</p>
+                            {truck.driver?.id && (
+                              <p className="text-gray-500">ID: {truck.driver.id}</p>
+                            )}
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-600">Reserved Driver:</span>
+                            <p className="font-bold">
+                              {truck.reservationSummary?.assignedDriver?.name || 
+                               truck.reservationDetails?.assignedDriver?.name || 'None'}
+                            </p>
+                            {(truck.reservationSummary?.assignedDriver?.id || truck.reservationDetails?.assignedDriver?.id) && (
+                              <p className="text-gray-500">
+                                ID: {truck.reservationSummary?.assignedDriver?.id || truck.reservationDetails?.assignedDriver?.id}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {truck.isReserved && (truck.reservationSummary || truck.reservationDetails) && (
+                          <div className="mt-2 pt-2 border-t border-gray-200">
+                            <span className="font-medium text-gray-600">Reservation:</span>
+                            <p className="text-xs">
+                              Customer: {truck.reservationSummary?.customerName || truck.reservationDetails?.customerInfo?.contactName || 'Unknown'}
+                            </p>
+                            <p className="text-xs">
+                              Route: {truck.reservationSummary?.route || 
+                                     (truck.reservationDetails?.route ? 
+                                      `${truck.reservationDetails.route.pickupLocation} → ${truck.reservationDetails.route.dropLocation}` : 
+                                      'Not specified')}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            )}
+            
+            {/* Instructions */}
+            <div className="mt-6 bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+              <h4 className="font-semibold text-yellow-800 mb-2">ℹ️ What to do if you don't see your assignment:</h4>
+              <ul className="text-sm text-yellow-700 space-y-1">
+                <li>1. Make sure your profile is complete with professional information</li>
+                <li>2. Verify that a business client has reserved a truck and assigned it to you</li>
+                <li>3. Check that your User ID matches the assignment in the system</li>
+                <li>4. Contact your fleet administrator if the assignment should be visible</li>
+                <li>5. Try refreshing the page if you just received an assignment</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Modern Header */}
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">Your Truck Dashboard</h1>
+              <div className="flex flex-wrap items-center gap-4 text-sm">
+                <span className="flex items-center text-gray-600">
+                  <Truck className="w-4 h-4 mr-2" />
+                  <span className="font-medium">Truck:</span> {selectedTruck.number}
+                </span>
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  truckDetails.deliveryStatus === 'Reserved' ? 'bg-blue-100 text-blue-800' :
+                  truckDetails.deliveryStatus === 'Active' ? 'bg-green-100 text-green-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {truckDetails.deliveryStatus}
+                </span>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3">
+              {/* Incoming Alerts Button */}
+              {incomingAlerts.length > 0 && (
+                <button
+                  onClick={() => setShowIncomingAlerts(true)}
+                  className="relative px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center shadow-lg border-2 border-blue-600 hover:border-blue-700 font-bold"
+                >
+                  <Bell className="w-5 h-5 mr-2" />
+                  <span className="hidden sm:inline">Messages</span>
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {incomingAlerts.length}
+                  </span>
+                </button>
+              )}
+              
+              {/* Fixed SOS Button - Removed animations and overlay */}
+              <button
+                onClick={handleSOS}
+                disabled={sosSending}
+                className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-bold shadow-lg disabled:opacity-50 flex items-center border-2 border-red-600 hover:border-red-700"
+              >
+                <AlertTriangle className="w-5 h-5 mr-2" />
+                {sosSending ? (
+                  <>
+                    <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
+                    Sending...
+                  </>
+                ) : (
+                  <>🚨 EMERGENCY SOS</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content - Three Column Layout */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Left Column - Map (2/3 width on large screens) */}
+          <div className="xl:col-span-2">
+            <div className="bg-white rounded-xl shadow-lg p-6 h-[890px]">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <MapPin className="w-6 h-6 text-green-600 mr-3" />
+                  <h2 className="text-xl font-bold text-gray-900">Live Location Tracking</h2>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-sm text-gray-500">
+                    {currentLocation ? 
+                      `${currentLocation.lat?.toFixed(4)}, ${currentLocation.lng?.toFixed(4)}` : 
+                      'Location unavailable'
+                    }
+                  </div>
+                  {googleMapsEmbedData?.externalUrl && (
+                    <button
+                      onClick={() => window.open(googleMapsEmbedData.externalUrl, '_blank')}
+                      className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium flex items-center"
+                    >
+                      <Navigation className="w-4 h-4 mr-2" />
+                      Open in Maps
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* Route Info Banner */}
+              {routeInfo && (
+                <div className="mb-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-100">
+                  <div className="grid md:grid-cols-3 gap-3 text-sm">
+                    <div>
+                      <p className="text-gray-600 font-medium mb-1">📍 From</p>
+                      <p className="text-gray-900 font-semibold text-xs leading-tight">{routeInfo.pickupLocation}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 font-medium mb-1">🎯 To</p>
+                      <p className="text-gray-900 font-semibold text-xs leading-tight">{routeInfo.dropLocation}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 font-medium mb-1">👤 Customer</p>
+                      <p className="text-gray-900 font-semibold text-xs">{routeInfo.customerName}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Map Container */}
+              <div className="h-[calc(100%-140px)] rounded-lg overflow-hidden">
+                {googleMapsEmbedData?.hasValidData ? (
+                  <div className="h-[680px] relative">
+                    {/* Try Google Maps Embed first */}
+                    {googleMapsEmbedData.embedUrl && googleMapsEmbedData.embedUrl.includes('YOUR_API_KEY_HERE') ? (
+                      // Custom route visualization when no API key
+                      <div className="h-full bg-gradient-to-br from-blue-50 to-green-50 rounded-lg p-6 flex flex-col">
+                        <div className="flex-1 flex items-center justify-center">
+                          <div className="text-center max-w-md">
+                            <Navigation className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+                            <h3 className="text-xl font-bold text-gray-800 mb-4">Route Overview</h3>
+                            
+                            {/* Route Visualization */}
+                            <div className="bg-white rounded-lg p-4 shadow-sm mb-4">
+                              <div className="space-y-3">
+                                {googleMapsEmbedData.waypoints.map((waypoint, index) => (
+                                  <div key={index} className="flex items-center">
+                                    <div className={`w-4 h-4 rounded-full mr-3 flex-shrink-0 ${
+                                      waypoint.type === 'pickup' ? 'bg-green-500' :
+                                      waypoint.type === 'drop' ? 'bg-red-500' :
+                                      'bg-blue-500'
+                                    }`}></div>
+                                    <div className="text-left flex-1">
+                                      <p className="text-sm font-medium text-gray-800">
+                                        {waypoint.type === 'pickup' ? '📍 Start' :
+                                         waypoint.type === 'drop' ? '🎯 End' :
+                                         `🛑 Stop ${index}`}
+                                      </p>
+                                      <p className="text-xs text-gray-600 leading-tight">{waypoint.name}</p>
+                                      {waypoint.details && (
+                                        <div className="mt-1 flex gap-1">
+                                          {waypoint.details.goodsType && (
+                                            <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs rounded">
+                                              {waypoint.details.goodsType}
+                                            </span>
+                                          )}
+                                          {waypoint.details.weight && (
+                                            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                                              {waypoint.details.weight} kg
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                            
+                            <p className="text-sm text-gray-600 mb-4">
+                              Complete route with {googleMapsEmbedData.waypoints.length} waypoints
+                            </p>
+                            
+                            <button
+                              onClick={() => window.open(googleMapsEmbedData.externalUrl, '_blank')}
+                              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium flex items-center justify-center"
+                            >
+                              <Navigation className="w-4 h-4 mr-2" />
+                              Open Full Route in Google Maps
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      // Google Maps Embed iframe when API key is available
+                      <iframe
+                        title="Route with Checkpoints"
+                        src={googleMapsEmbedData.embedUrl}
+                        width="100%"
+                        height="100%"
+                        style={{ border: 0 }}
+                        allowFullScreen=""
+                        loading="lazy"
+                        referrerPolicy="no-referrer-when-downgrade"
+                      ></iframe>
+                    )}
+                  </div>
+                ) : (
+                  <div className="h-full flex items-center justify-center bg-gray-100 rounded-lg">
+                    <div className="text-center">
+                      <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-600 text-lg">No route data available</p>
+                      <p className="text-gray-500 text-sm">Route will appear when pickup and drop locations are set</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Sidebar (1/3 width on large screens) */}
+          <div className="space-y-6">
+            {/* Route Checkpoints Card */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center mb-4">
+                <CheckCircle className="w-6 h-6 text-purple-600 mr-3" />
+                <h2 className="text-lg font-bold text-gray-900">Route Checkpoints</h2>
+              </div>
+              
+              {checkpointsForDisplay.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Progress Overview */}
+                  <div className="bg-purple-50 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-purple-700">Progress</span>
+                      <span className="text-sm text-purple-600">
+                        {checkpointsForDisplay.filter(cp => cp.completed).length}/{checkpointsForDisplay.length}
+                      </span>
+                    </div>
+                    <div className="w-full bg-purple-200 rounded-full h-2">
+                      <div 
+                        className="bg-purple-600 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${(checkpointsForDisplay.filter(cp => cp.completed).length / checkpointsForDisplay.length) * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Next Checkpoint Highlight */}
+                  {nextCheckpoint && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="flex items-center mb-2">
+                        <Clock className="w-4 h-4 text-blue-600 mr-2" />
+                        <span className="text-sm font-semibold text-blue-800">Next Checkpoint</span>
+                      </div>
+                      <p className="font-bold text-blue-900 text-sm leading-tight">
+                        {typeof nextCheckpoint === 'string' ? nextCheckpoint : nextCheckpoint?.name || nextCheckpoint?.location || 'Checkpoint'}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Checkpoints List */}
+                  <div className="max-h-80 overflow-y-auto space-y-3">
+                    {checkpointsForDisplay.map((cp, idx) => (
+                      <div key={idx} className={`relative p-3 rounded-lg border-l-4 transition-all ${
+                        cp.completed ? 'bg-green-50 border-l-green-500' :
+                        cp.isCurrent ? 'bg-blue-50 border-l-blue-500' :
+                        'bg-gray-50 border-l-gray-300'
+                      }`}>
+                        <div className="flex items-start">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center mr-3 flex-shrink-0 text-xs font-bold ${
+                            cp.completed ? 'bg-green-500 text-white' :
+                            cp.isCurrent ? 'bg-blue-500 text-white' :
+                            'bg-gray-300 text-gray-700'
+                          }`}>
+                            {cp.completed ? '✓' : idx + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-medium text-sm mb-2 leading-tight ${
+                              cp.completed ? 'text-green-800 line-through' :
+                              cp.isCurrent ? 'text-blue-800' :
+                              'text-gray-800'
+                            }`}>
+                              {cp.name}
+                            </p>
+                            
+                            {/* Details as Tags */}
+                            {cp.details && (
+                              <div className="flex flex-wrap gap-1 mb-2">
+                                {cp.details.goodsType && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                    {cp.details.goodsType}
+                                  </span>
+                                )}
+                                {cp.details.weight && (
+                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    {cp.details.weight}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Instructions */}
+                            {cp.details?.handlingInstructions && (
+                              <p className="text-xs text-gray-600 italic mt-1 leading-tight">
+                                "{cp.details.handlingInstructions}"
+                              </p>
+                            )}
+                          </div>
+                          
+                          {/* Status Badge */}
+                          {cp.isCurrent && (
+                            <span className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Navigation className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500 mb-2">No checkpoints assigned</p>
+                  <p className="text-xs text-gray-400">Checkpoints will appear when a route is assigned</p>
+                </div>
+              )}
+            </div>
+
+            {/* Route Alerts Card */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center mb-4">
+                <AlertTriangle className="w-6 h-6 text-amber-600 mr-3" />
+                <h2 className="text-lg font-bold text-gray-900">Route Alerts</h2>
+              </div>
+              
+              {alerts.length > 0 ? (
+                <div className="space-y-3 max-h-48 overflow-y-auto">
+                  {alerts.slice(0, 4).map((alert, index) => (
+                    <div key={index} className={`p-3 rounded-lg border-l-4 ${
+                      alert.severity === 'high' ? 'bg-red-50 border-l-red-500' :
+                      alert.severity === 'medium' ? 'bg-yellow-50 border-l-yellow-500' :
+                      'bg-blue-50 border-l-blue-500'
+                    }`}>
+                      <div className="flex items-start justify-between">
+                        <p className="text-sm text-gray-800 flex-1 leading-tight">{alert.message}</p>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ml-2 flex-shrink-0 ${
+                          alert.severity === 'high' ? 'bg-red-100 text-red-800' :
+                          alert.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {alert.severity?.toUpperCase()}
+                        </span>
+                      </div>
+                      {alert.timestamp && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(alert.timestamp).toLocaleTimeString()}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <CheckCircle className="w-10 h-10 mx-auto text-green-400 mb-2" />
+                  <p className="text-gray-500 text-sm">No active alerts</p>
+                  <p className="text-xs text-gray-400">All systems operational</p>
+                </div>
+              )}
+            </div>
+
+            {/* Truck Details Card */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center mb-4">
+                <Truck className="w-6 h-6 text-gray-600 mr-3" />
+                <h2 className="text-lg font-bold text-gray-900">Truck Details</h2>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-1">License Plate</p>
+                    <p className="text-sm font-semibold text-gray-800">{truckDetails.licensePlate}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-1">Model</p>
+                    <p className="text-sm font-semibold text-gray-800">{truckDetails.model}</p>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-1">Driver</p>
+                    <p className="text-sm font-semibold text-gray-800">{truckDetails.driver}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-1">Capacity</p>
+                    <p className="text-sm font-semibold text-gray-800">{truckDetails.capacity}</p>
+                  </div>
+                </div>
+                
+                <div>
+                  <p className="text-xs text-gray-500 font-medium mb-1">License Number</p>
+                  <p className="text-sm font-semibold text-gray-800">{truckDetails.licenseNumber}</p>
+                </div>
+                
+                <div>
+                  <p className="text-xs text-gray-500 font-medium mb-1">Last Maintenance</p>
+                  <p className="text-sm font-semibold text-gray-800">{truckDetails.lastMaintenance}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Fixed SOS Alert Dialog - Better positioning and scrolling */}
+      {showSOSDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-start justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md mx-auto shadow-2xl my-8 max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="bg-red-500 text-white p-4 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <AlertTriangle className="w-6 h-6 mr-3" />
+                  <div>
+                    <h3 className="text-lg font-bold">Emergency SOS Alert</h3>
+                    <p className="text-red-100 text-sm">This will immediately notify fleet management</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowSOSDialog(false);
+                    setSosSending(false); // Reset sending state
+                    setSOSMessage(''); // Reset form
+                    setSOSType('general'); // Reset form
+                    setSOSUrgency('high'); // Reset form
+                  }}
+                  className="text-red-100 hover:text-white transition-colors"
+                  disabled={sosSending}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Content - Scrollable body */}
+            <div className="p-4 space-y-4 flex-1 overflow-y-auto">
+              {/* Emergency Type Selection */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Emergency Type
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: 'general', label: '🚨 General Emergency', color: 'bg-red-50 border-red-200 text-red-700' },
+                    { value: 'accident', label: '💥 Accident', color: 'bg-red-50 border-red-200 text-red-700' },
+                    { value: 'breakdown', label: '🔧 Vehicle Breakdown', color: 'bg-orange-50 border-orange-200 text-orange-700' },
+                    { value: 'medical', label: '🏥 Medical Emergency', color: 'bg-red-50 border-red-200 text-red-700' },
+                    { value: 'security', label: '🔒 Security Threat', color: 'bg-red-50 border-red-200 text-red-700' },
+                    { value: 'weather', label: '🌪️ Weather Emergency', color: 'bg-blue-50 border-blue-200 text-blue-700' }
+                  ].map((type) => (
+                    <label
+                      key={type.value}
+                      className={`p-2 rounded-lg border-2 cursor-pointer transition-all text-xs font-medium ${
+                        sosType === type.value
+                          ? 'border-red-500 bg-red-50 text-red-700'
+                          : type.color + ' hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="sosType"
+                        value={type.value}
+                        checked={sosType === type.value}
+                        onChange={(e) => setSOSType(e.target.value)}
+                        className="sr-only"
+                        disabled={sosSending}
+                      />
+                      {type.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Urgency Level */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Urgency Level
+                </label>
+                <div className="flex gap-2">
+                  {[
+                    { value: 'critical', label: 'CRITICAL', color: 'bg-red-500 text-white' },
+                    { value: 'high', label: 'HIGH', color: 'bg-orange-500 text-white' },
+                    { value: 'medium', label: 'MEDIUM', color: 'bg-yellow-500 text-white' }
+                  ].map((level) => (
+                    <label
+                      key={level.value}
+                      className={`flex-1 p-2 rounded-lg cursor-pointer transition-all text-center font-bold text-sm ${
+                        sosUrgency === level.value
+                          ? level.color
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="sosUrgency"
+                        value={level.value}
+                        checked={sosUrgency === level.value}
+                        onChange={(e) => setSOSUrgency(e.target.value)}
+                        className="sr-only"
+                        disabled={sosSending}
+                      />
+                      {level.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Additional Message */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Additional Details (Optional)
+                </label>
+                <textarea
+                  value={sosMessage}
+                  onChange={(e) => setSOSMessage(e.target.value)}
+                  placeholder="Provide any additional details about the emergency..."
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none text-sm"
+                  rows={2}
+                  maxLength={500}
+                  disabled={sosSending}
+                />
+                <div className="text-xs text-gray-500 mt-1">
+                  {sosMessage.length}/500 characters
+                </div>
+              </div>
+
+              {/* Driver Info Display */}
+              <div className="bg-gray-50 rounded-lg p-3">
+                <h4 className="font-semibold text-gray-700 mb-2 text-sm">Alert Information</h4>
+                <div className="space-y-1 text-xs text-gray-600">
+                  <div><strong>Driver:</strong> {user?.displayName || user?.email || 'Driver'}</div>
+                  <div><strong>Vehicle:</strong> {truckDetails.licensePlate} ({truckDetails.model})</div>
+                  <div><strong>Location:</strong> {currentLocation ? `${currentLocation.lat?.toFixed(4)}, ${currentLocation.lng?.toFixed(4)}` : 'Location unavailable'}</div>
+                  {routeInfo && (
+                    <div><strong>Route:</strong> {routeInfo.pickupLocation} → {routeInfo.dropLocation}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer - Fixed at bottom */}
+            <div className="bg-gray-50 px-4 py-3 rounded-b-2xl flex gap-3 flex-shrink-0">
+              <button
+                onClick={() => {
+                  setShowSOSDialog(false);
+                  setSosSending(false); // Reset sending state
+                  setSOSMessage(''); // Reset form
+                  setSOSType('general'); // Reset form
+                  setSOSUrgency('high'); // Reset form
+                }}
+                disabled={sosSending}
+                className="flex-1 px-3 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors font-semibold disabled:opacity-50 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={sendSOSAlert}
+                disabled={sosSending}
+                className="flex-1 px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-bold disabled:opacity-50 flex items-center justify-center text-sm"
+              >
+                {sosSending ? (
+                  <>
+                    <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></span>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="w-4 h-4 mr-2" />
+                    Send Alert
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Incoming Alerts Dialog */}
+      {showIncomingAlerts && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg w-96 max-w-md max-h-96 flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+                <Bell className="w-5 h-5 mr-2 text-blue-600" />
+                Incoming Messages ({incomingAlerts.length})
+              </h3>
+              <button
+                onClick={() => setShowIncomingAlerts(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4">
+              {incomingAlerts.length === 0 ? (
+                <div className="text-center py-8">
+                  <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                  <p className="text-gray-600">No new messages</p>
+                  <p className="text-sm text-gray-500">All caught up!</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {incomingAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className={`p-3 rounded-lg border ${
+                        alert.type === 'dispatch_instructions' && alert.metadata?.priority === 'critical'
+                          ? 'bg-red-50 border-red-200'
+                          : 'bg-blue-50 border-blue-200'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center mb-1">
+                            <span className="text-xs font-medium uppercase tracking-wide text-gray-600">
+                              {alert.type === 'dispatch_instructions' ? '📋 Instructions' : '🗺️ Route Update'}
+                            </span>
+                            {alert.metadata?.priority === 'critical' && (
+                              <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded-full">
+                                URGENT
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-800 font-medium">{alert.message}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            From: Super Admin • {new Date(alert.timestamp).toLocaleString()}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => acknowledgeAlert(alert.id)}
+                          className="ml-2 text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
+                          title="Mark as read"
+                        >
+                          ✓ Got it
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t bg-gray-50 text-center">
+              <p className="text-xs text-gray-600">
+                Messages from Fleet Management will appear here
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default TruckDetails;

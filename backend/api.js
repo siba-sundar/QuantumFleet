@@ -9,11 +9,14 @@ import dotenv from 'dotenv';
 // Import GPS tracking services
 import gpsRoutes from './src/routes/gpsRoutes.js';
 import webSocketService from './src/services/webSocketService.js';
+import gpsTrackingService from './src/services/gpsTrackingService.js';
 
 // Import Firebase repositories
 import { TruckReservationRepository } from './src/repositories/TruckReservationRepository.js';
 import { BaseRepository } from './src/repositories/BaseRepository.js';
 import { SentimentRepository, EnhancedDriverRepository } from './src/repositories/SentimentRepository.js';
+import { LocationCacheRepository } from './src/repositories/LocationCacheRepository.js';
+// Use backend BaseRepository for business profiles to avoid importing frontend code
 
 // Import sentiment analysis service
 import SentimentAnalysisService from './src/services/sentimentAnalysisService.js';
@@ -34,6 +37,7 @@ const driverProfilesRepo = new BaseRepository('driverProfiles');
 const postalProfilesRepo = new BaseRepository('postalProfiles');
 const sentimentRepo = new SentimentRepository();
 const enhancedDriverRepo = new EnhancedDriverRepository();
+const locationCacheRepo = new LocationCacheRepository();
 
 // Initialize services
 const sentimentAnalysisService = new SentimentAnalysisService();
@@ -214,6 +218,25 @@ app.patch('/api/users/:id', async (req, res) => {
 });
 
 // Business Profile Management
+
+// Get all business profiles (for super admin)
+app.get('/api/business-profiles', async (req, res) => {
+  try {
+    const profiles = await businessProfilesRepo.findAll('createdAt', 'desc');
+    
+    res.json({
+      success: true,
+      profiles,
+      count: profiles.length
+    });
+  } catch (error) {
+    console.error('Error fetching business profiles:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch business profiles'
+    });
+  }
+});
 
 // Create business profile
 app.post('/api/business-profiles', async (req, res) => {
@@ -683,15 +706,29 @@ app.post('/api/sentiment/survey', async (req, res) => {
     }
     
     console.log(`Processing sentiment survey for driver: ${driverId}`);
+
+    // Check monthly submission limit before processing
+    const gate = await sentimentAnalysisService.canSubmitSurvey(driverId, 2);
+    if (!gate.allowed) {
+      return res.status(429).json({
+        success: false,
+        error: `Monthly limit reached. Only ${gate.limit} submissions allowed per month.`,
+        resetsAt: gate.resetsAt
+      });
+    }
     
     // Process survey using sentiment analysis service
     const result = await sentimentAnalysisService.processSurvey(driverId, surveyData);
-    
+    // Recompute gate after save to reflect current count
+    const postGate = await sentimentAnalysisService.canSubmitSurvey(driverId, 2);
     res.status(201).json({
       success: true,
       message: 'Sentiment survey processed successfully',
       sentimentId: result.sentimentId,
-      analysis: result.analysis
+      analysis: result.analysis,
+      remainingThisMonth: postGate.remaining,
+      limitPerMonth: postGate.limit,
+      resetsAt: postGate.resetsAt
     });
   } catch (error) {
     console.error('Error processing sentiment survey:', error);
@@ -723,6 +760,31 @@ app.get('/api/sentiment/driver/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch sentiment history'
+    });
+  }
+});
+
+// Get driver submission quota (for 2-per-month limit)
+app.get('/api/sentiment/driver/:id/quota', async (req, res) => {
+  try {
+    const driverId = req.params.id;
+    
+    const quotaInfo = await sentimentAnalysisService.canSubmitSurvey(driverId, 2);
+    
+    res.json({
+      success: true,
+      driverId,
+      allowed: quotaInfo.allowed,
+      remaining: quotaInfo.remaining,
+      limit: quotaInfo.limit,
+      resetsAt: quotaInfo.resetsAt,
+      currentMonth: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    });
+  } catch (error) {
+    console.error('Error fetching sentiment quota:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch sentiment quota'
     });
   }
 });
@@ -770,16 +832,27 @@ app.get('/api/sentiment/fleet/stats', async (req, res) => {
 // Get enhanced fleet data with reservations and sentiment
 app.get('/api/trucks/enhanced', async (req, res) => {
   try {
-    const { includeReserved, includeSentiment } = req.query;
+    const { includeReserved, includeSentiment, businessUid } = req.query;
     
-    // Get all trucks
-    const trucks = await trucksRepo.findAll();
+    // Get trucks - filter by business if businessUid is provided
+    let trucks;
+    if (businessUid) {
+      trucks = await trucksRepo.findWhere([
+        { field: 'businessUid', operator: '==', value: businessUid }
+      ]);
+    } else {
+      trucks = await trucksRepo.findAll();
+    }
     
-    // Get reservations if requested
+    // Get reservations if requested - filter by business if businessUid is provided
     let reservations = [];
     let reservedTrucks = [];
     if (includeReserved === 'true') {
-      reservations = await truckReservationRepo.findAll();
+      if (businessUid) {
+        reservations = await truckReservationRepo.findByBusinessUid(businessUid);
+      } else {
+        reservations = await truckReservationRepo.findAll();
+      }
       
       // Convert confirmed reservations to truck format
       reservedTrucks = reservations
@@ -1520,6 +1593,317 @@ app.post('/api/seed-trucks', (req, res) => {
 // GPS Tracking Routes
 app.use('/api/tracking', gpsRoutes);
 
+// Location API Endpoints
+
+// Search locations using Google Places API
+app.get('/api/locations/search', async (req, res) => {
+  try {
+    const { q: query, limit = 10, types } = req.query;
+    
+    if (!query || query.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        error: 'Query must be at least 2 characters long'
+      });
+    }
+
+    const options = {
+      types: types || 'establishment|geocode'
+    };
+
+    const suggestions = await gpsTrackingService.getLocationSuggestions(query, options);
+    
+    res.json({
+      success: true,
+      results: suggestions.slice(0, parseInt(limit)),
+      query,
+      count: suggestions.length
+    });
+  } catch (error) {
+    console.error('Error searching locations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to search locations'
+    });
+  }
+});
+
+// Get place details by Place ID
+app.get('/api/locations/details/:placeId', async (req, res) => {
+  try {
+    const { placeId } = req.params;
+    
+    if (!placeId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Place ID is required'
+      });
+    }
+
+    // This would typically use Google Places Details API
+    // For now, we'll return a placeholder response
+    res.json({
+      success: true,
+      message: 'Place details functionality to be implemented',
+      placeId
+    });
+  } catch (error) {
+    console.error('Error getting place details:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get place details'
+    });
+  }
+});
+
+// Batch geocode addresses
+app.post('/api/locations/geocode', async (req, res) => {
+  try {
+    const { addresses } = req.body;
+    
+    if (!addresses || !Array.isArray(addresses)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Addresses array is required'
+      });
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (let i = 0; i < addresses.length; i++) {
+      try {
+        const address = addresses[i];
+        const locationData = await gpsTrackingService.geocodeAddress(address);
+        results.push({
+          index: i,
+          address,
+          success: true,
+          data: locationData
+        });
+      } catch (error) {
+        errors.push({
+          index: i,
+          address: addresses[i],
+          error: error.message
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      results,
+      errors,
+      total: addresses.length,
+      successful: results.length,
+      failed: errors.length
+    });
+  } catch (error) {
+    console.error('Error batch geocoding:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to geocode addresses'
+    });
+  }
+});
+
+// Update vehicle location with enhanced data
+app.put('/api/vehicles/:vehicleId/location', async (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+    const { address, coordinates, placeId, source = 'manual' } = req.body;
+    
+    if (!vehicleId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Vehicle ID is required'
+      });
+    }
+
+    if (!coordinates || !coordinates.lat || !coordinates.lng) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid coordinates (lat, lng) are required'
+      });
+    }
+
+    const locationData = {
+      latitude: coordinates.lat,
+      longitude: coordinates.lng,
+      accuracy: coordinates.accuracy || null,
+      timestamp: new Date(),
+      source
+    };
+
+    const result = await gpsTrackingService.updateVehicleLocationEnhanced(
+      vehicleId, 
+      locationData,
+      { includeNearbyPlaces: true }
+    );
+    
+    res.json({
+      success: true,
+      message: 'Vehicle location updated successfully',
+      location: result.location,
+      vehicleId
+    });
+  } catch (error) {
+    console.error('Error updating vehicle location:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update vehicle location'
+    });
+  }
+});
+
+// Get vehicles within radius of a location
+app.get('/api/vehicles/nearby', async (req, res) => {
+  try {
+    const { lat, lng, radius = 5 } = req.query;
+    
+    if (!lat || !lng) {
+      return res.status(400).json({
+        success: false,
+        error: 'Latitude and longitude are required'
+      });
+    }
+
+    const latitude = parseFloat(lat);
+    const longitude = parseFloat(lng);
+    const radiusKm = parseFloat(radius);
+
+    if (isNaN(latitude) || isNaN(longitude) || isNaN(radiusKm)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid coordinates or radius'
+      });
+    }
+
+    // Get all trucks and filter by distance
+    const allTrucks = await trucksRepo.findAll();
+    const nearbyVehicles = [];
+
+    allTrucks.forEach(truck => {
+      if (truck.currentLocation && truck.currentLocation.latitude && truck.currentLocation.longitude) {
+        const distance = calculateDistance(
+          latitude, longitude,
+          truck.currentLocation.latitude, truck.currentLocation.longitude
+        );
+        
+        if (distance <= radiusKm) {
+          nearbyVehicles.push({
+            ...truck,
+            distance: Math.round(distance * 100) / 100 // Round to 2 decimal places
+          });
+        }
+      }
+    });
+
+    // Sort by distance
+    nearbyVehicles.sort((a, b) => a.distance - b.distance);
+    
+    res.json({
+      success: true,
+      vehicles: nearbyVehicles,
+      count: nearbyVehicles.length,
+      searchCenter: { lat: latitude, lng: longitude },
+      radius: radiusKm
+    });
+  } catch (error) {
+    console.error('Error finding nearby vehicles:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to find nearby vehicles'
+    });
+  }
+});
+
+// Get cached location
+app.get('/api/locations/cache', async (req, res) => {
+  try {
+    const { address } = req.query;
+    
+    if (!address) {
+      return res.status(400).json({
+        success: false,
+        error: 'Address parameter is required'
+      });
+    }
+
+    const cached = await locationCacheRepo.getCachedLocation(address);
+    
+    if (cached) {
+      res.json({
+        success: true,
+        cached: true,
+        location: cached
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        cached: false,
+        message: 'Location not found in cache'
+      });
+    }
+  } catch (error) {
+    console.error('Error getting cached location:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get cached location'
+    });
+  }
+});
+
+// Cache statistics
+app.get('/api/locations/cache/stats', async (req, res) => {
+  try {
+    const stats = await locationCacheRepo.getCacheStats();
+    
+    res.json({
+      success: true,
+      stats
+    });
+  } catch (error) {
+    console.error('Error getting cache stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get cache statistics'
+    });
+  }
+});
+
+// Clean expired cache entries
+app.post('/api/locations/cache/clean', async (req, res) => {
+  try {
+    const result = await locationCacheRepo.cleanExpiredEntries();
+    
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('Error cleaning cache:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to clean cache'
+    });
+  }
+});
+
+// Helper function to calculate distance between two coordinates
+function calculateDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 // Truck Reservation Endpoints
 
 // Create truck reservation
@@ -1735,6 +2119,168 @@ app.get('/api/reservations/upcoming/pickups', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch upcoming pickups'
+    });
+  }
+});
+
+// Get reservation for a specific driver
+app.get('/api/reservations/driver/:driverId', async (req, res) => {
+  try {
+    const { driverId } = req.params;
+    
+    // Find reservation where the driver is assigned to any truck
+    const reservations = await truckReservationRepo.findAll();
+    const driverReservation = reservations.find(reservation => 
+      reservation.trucks?.some(truck => truck.assignedDriver?.id === driverId)
+    );
+    
+    if (!driverReservation) {
+      return res.json({
+        success: true,
+        reservation: null,
+        message: 'No active reservation found for driver'
+      });
+    }
+    
+    res.json({
+      success: true,
+      reservation: driverReservation
+    });
+  } catch (error) {
+    console.error('Error fetching driver reservation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch driver reservation'
+    });
+  }
+});
+
+// Business Dashboard Data Endpoints
+
+// Get comprehensive dashboard data for a business
+app.get('/api/business/:uid/dashboard', async (req, res) => {
+  try {
+    const businessUid = req.params.uid;
+    
+    // Get business profile
+    const profile = await businessProfilesRepo.findById(businessUid);
+    
+    // Get reservation count
+    const reservations = await truckReservationRepo.findByBusinessUid(businessUid);
+    const reservationCount = reservations.length;
+    
+    // Get active reservations
+    const activeReservations = reservations.filter(res => 
+      ['confirmed', 'in-progress'].includes(res.status)
+    );
+    
+    // Calculate delivery status summary
+    const deliveryStatus = {
+      total: reservations.length,
+      pending: reservations.filter(r => r.status === 'pending').length,
+      confirmed: reservations.filter(r => r.status === 'confirmed').length,
+      'in-progress': reservations.filter(r => r.status === 'in-progress').length,
+      completed: reservations.filter(r => r.status === 'completed').length,
+      cancelled: reservations.filter(r => r.status === 'cancelled').length
+    };
+    
+    // Calculate trucks in use
+    const trucksInUse = activeReservations.reduce((count, res) => 
+      count + (res.trucks?.length || 0), 0
+    );
+    
+    res.json({
+      success: true,
+      profile,
+      reservationCount,
+      activeReservations,
+      deliveryStatus,
+      trucksInUse
+    });
+  } catch (error) {
+    console.error('Error fetching business dashboard data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch business dashboard data'
+    });
+  }
+});
+
+// Get delivery status for a business
+app.get('/api/business/:uid/delivery-status', async (req, res) => {
+  try {
+    const businessUid = req.params.uid;
+    
+    const reservations = await truckReservationRepo.findByBusinessUid(businessUid);
+    const activeReservations = reservations.filter(res => 
+      ['confirmed', 'in-progress'].includes(res.status)
+    );
+    
+    const deliveryStatus = {
+      total: reservations.length,
+      pending: reservations.filter(r => r.status === 'pending').length,
+      confirmed: reservations.filter(r => r.status === 'confirmed').length,
+      'in-progress': reservations.filter(r => r.status === 'in-progress').length,
+      completed: reservations.filter(r => r.status === 'completed').length,
+      cancelled: reservations.filter(r => r.status === 'cancelled').length
+    };
+    
+    res.json({
+      success: true,
+      deliveryStatus,
+      activeReservations
+    });
+  } catch (error) {
+    console.error('Error fetching delivery status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch delivery status'
+    });
+  }
+});
+
+// Get trucks assigned to a business
+app.get('/api/business/:uid/trucks', async (req, res) => {
+  try {
+    const businessUid = req.params.uid;
+    
+    const reservations = await truckReservationRepo.findByBusinessUid(businessUid, 'confirmed');
+    const trucks = [];
+    
+    reservations.forEach(reservation => {
+      if (reservation.trucks) {
+        reservation.trucks.forEach(truck => {
+          // Normalize a readable truck identifier so UI doesn't show "Unknown"
+          const normalizedNumber =
+            truck.number ||
+            truck.truckNumber ||
+            truck.truckId ||
+            truck.licensePlate ||
+            truck.plate ||
+            truck.id ||
+            `AUTO-${String(reservation.id || '').slice(0, 6).toUpperCase()}`;
+
+          trucks.push({
+            ...truck,
+            number: normalizedNumber,
+            reservationId: reservation.id,
+            status: truck.status || 'Active',
+            location: truck.currentLocation || { lat: 28.7041, lng: 77.1025 },
+            route: `${truck.pickupLocation || 'Unknown'} to ${truck.dropLocation || 'Unknown'}`
+          });
+        });
+      }
+    });
+    
+    res.json({
+      success: true,
+      trucks
+    });
+  } catch (error) {
+    console.error('Error fetching business trucks:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch business trucks'
     });
   }
 });

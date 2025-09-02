@@ -16,8 +16,10 @@ class TrackingSession {
     this.sessionId = data.sessionId || this.generateSessionId();
     this.vehicleId = data.vehicleId;
     this.driverPhone = data.driverPhone;
+    this.driverEmail = data.driverEmail;
+    this.contactMethod = data.contactMethod || 'phone';
     this.routeId = data.routeId || null;
-    this.status = data.status || 'active'; // active, expired, completed, cancelled
+    this.status = data.status || 'active';
     this.trackingLink = data.trackingLink;
     this.driverConsent = data.driverConsent || false;
     this.consentTimestamp = data.consentTimestamp || null;
