@@ -16,6 +16,12 @@ import { TruckReservationRepository } from './src/repositories/TruckReservationR
 import { BaseRepository } from './src/repositories/BaseRepository.js';
 import { SentimentRepository, EnhancedDriverRepository } from './src/repositories/SentimentRepository.js';
 import { LocationCacheRepository } from './src/repositories/LocationCacheRepository.js';
+
+// blockchain route imports
+import { grantRole , revokeRole , hasRole } from "./src/services/accessService.js";
+import { updateDelivery,createDelivery,getDelivery,markDeliveredFromPoD } from "./src/services/deliveryService.js";
+import {addCheckpoint,finalize,getCheckpoints,initProof,isFinalized,proofExists} from './src/services/podService.js'
+
 // Use backend BaseRepository for business profiles to avoid importing frontend code
 
 // Import sentiment analysis service
@@ -54,6 +60,128 @@ webSocketService.initialize(server);
 app.use(cors());
 app.use(express.json());
 
+// ========================
+// |   Blockchain Routes  |
+// ========================
+// Access Routes
+app.post("/access/grant", async (req, res) => {
+  try {
+    const { account, role } = req.body;
+    const tx = await grantRole(account, role);
+    res.json({ success: true, tx });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/access/revoke", async (req, res) => {
+  try {
+    const { account, role } = req.body;
+    const tx = await revokeRole(account, role);
+    res.json({ success: true, tx });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/access/has/:account/:role", async (req, res) => {
+  try {
+    const { account, role } = req.params;
+    const result = await hasRole(account, role);
+    res.json({ hasRole: result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delivery Routes
+app.post("/delivery/create", async (req, res) => {
+  try {
+    const { orderId, sender, receiver, details } = req.body;
+    const tx = await createDelivery(orderId, sender, receiver, details);
+    res.json({ success: true, tx });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/delivery/update", async (req, res) => {
+  try {
+    const { orderId, status } = req.body;
+    const tx = await updateDelivery(orderId, status);
+    res.json({ success: true, tx });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/delivery/mark-delivered", async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    const tx = await markDeliveredFromPoD(orderId);
+    res.json({ success: true, tx });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/delivery/:orderId", async (req, res) => {
+  try {
+    const delivery = await getDelivery(req.params.orderId);
+    res.json({ delivery });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// Proof Of Delivery Routes
+app.post("/init", async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    const tx = await initProof(orderId);
+    res.json({ success: true, tx });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/checkpoint", async (req, res) => {
+  try {
+    const { orderId, latE6, lonE6, ts } = req.body;
+    const tx = await addCheckpoint(orderId, latE6, lonE6, ts);
+    res.json({ success: true, tx });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/finalize", async (req, res) => {
+  try {
+    const { orderId } = req.body;
+    const tx = await finalize(orderId);
+    res.json({ success: true, tx });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/:orderId/checkpoints", async (req, res) => {
+  try {
+    const checkpoints = await getCheckpoints(req.params.orderId);
+    res.json({ checkpoints });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/:orderId/status", async (req, res) => {
+  try {
+    const exists = await proofExists(req.params.orderId);
+    const finalized = await isFinalized(req.params.orderId);
+    res.json({ exists, finalized });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // Authentication endpoints for testing
 app.post('/api/auth/register', async (req, res) => {
   try {
