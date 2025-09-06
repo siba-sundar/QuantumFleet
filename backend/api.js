@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import {ethers} from 'ethers'
 // Import GPS tracking services
 import gpsRoutes from './src/routes/gpsRoutes.js';
+import reservationsRoutes from './src/routes/reservations.js';
 import webSocketService from './src/services/webSocketService.js';
 import gpsTrackingService from './src/services/gpsTrackingService.js';
 
@@ -1866,6 +1867,7 @@ app.post('/api/seed-trucks', (req, res) => {
 
 // GPS Tracking Routes
 app.use('/api/tracking', gpsRoutes);
+app.use('/api/reservations', reservationsRoutes);
 
 // Location API Endpoints
 
