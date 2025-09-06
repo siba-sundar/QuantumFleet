@@ -95,6 +95,7 @@ app.get("/access/has/:account/:role", async (req, res) => {
 });
 
 // Delivery Routes
+// Create delivery
 app.post("/delivery/create", async (req, res) => {
   try {
     const { orderId, sender, receiver, details } = req.body;
@@ -102,6 +103,168 @@ app.post("/delivery/create", async (req, res) => {
     res.json({ success: true, tx });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/deliveries/:reservationId/status", async (req, res) => {
+  try {
+    const { reservationId } = req.params;
+    const { status, timestamp, notes } = req.body;
+
+    // Input validation
+    if (!reservationId || !status) {
+      return res.status(400).json({
+        success: false,
+        error: 'Reservation ID and status are required'
+      });
+    }
+
+    // Update delivery status in Firebase
+    const reservationRef = db.collection('truckReservations').doc(reservationId);
+    const reservationDoc = await reservationRef.get();
+
+    if (!reservationDoc.exists) {
+      return res.status(404).json({
+        success: false,
+        error: 'Reservation not found'
+      });
+    }
+
+    // Create status update object
+    const statusUpdate = {
+      status,
+      timestamp: timestamp || new Date().toISOString(),
+      notes: notes || ''
+    };
+
+    // Update the reservation document with new status and history
+    await reservationRef.update({
+      deliveryStatus: status,
+      lastStatusUpdate: statusUpdate.timestamp,
+      updatedAt: statusUpdate.timestamp,
+      'statusHistory': admin.firestore.FieldValue.arrayUnion(statusUpdate)
+    });
+
+    res.json({
+      success: true,
+      message: 'Delivery status updated successfully',
+      statusUpdate
+    });
+
+  } catch (error) {
+    console.error('Error updating delivery status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to update delivery status'
+    });
+  }
+});
+
+// Update checkpoint status endpoint
+app.put("/api/deliveries/:reservationId/checkpoint", async (req, res) => {
+  try {
+    const { reservationId } = req.params;
+    const { truckIndex, checkpointIndex, status, timestamp, notes } = req.body;
+    console.log("Reservation ID : " + reservationId)
+    console.log(`Checkpoint idx : ${checkpointIndex}`)
+    console.log(`Status : ${status}`)
+    // Input validation
+    if (!reservationId || typeof truckIndex !== 'number' || typeof checkpointIndex !== 'number' || !status) {
+      return res.status(400).json({
+        success: false,
+        error: 'Reservation ID, truck index, checkpoint index, and status are required'
+      });
+    }
+
+    // Get reservation document
+    const reservationRef = db.collection('truckReservations').doc(reservationId);
+    const reservationDoc = await reservationRef.get();
+
+    if (!reservationDoc.exists) {
+      return res.status(404).json({
+        success: false,
+        error: 'Reservation not found'
+      });
+    }
+
+    const reservationData = reservationDoc.data();
+    const trucks = reservationData.trucks || [];
+
+    // Validate truck index
+    if (truckIndex >= trucks.length) {
+      return res.status(404).json({
+        success: false,
+        error: 'Truck not found in this reservation'
+      });
+    }
+
+    const truck = trucks[truckIndex];
+    const checkpoints = truck.checkpoints || [];
+
+    // Validate checkpoint index
+    if (checkpointIndex >= checkpoints.length) {
+      return res.status(404).json({
+        success: false,
+        error: 'Checkpoint index out of range'
+      });
+    }
+
+    // Create checkpoint update
+    const currentTime = new Date().toISOString();
+    const checkpointUpdate = {
+      status,
+      timestamp: timestamp || currentTime,
+      notes: notes || ''
+    };
+
+    // Update the checkpoints array in the truck
+    const updatedTrucks = [...trucks];
+    const updatedCheckpoints = [...checkpoints];
+    
+    updatedCheckpoints[checkpointIndex] = {
+      ...checkpoints[checkpointIndex],
+      ...checkpointUpdate,
+      lastUpdated: currentTime
+    };
+
+    // Initialize or update status history
+    if (!updatedCheckpoints[checkpointIndex].statusHistory) {
+      updatedCheckpoints[checkpointIndex].statusHistory = [];
+    }
+    updatedCheckpoints[checkpointIndex].statusHistory.push(checkpointUpdate);
+
+    // Update the truck's checkpoints
+    updatedTrucks[truckIndex] = {
+      ...truck,
+      checkpoints: updatedCheckpoints,
+      lastCheckpointUpdate: currentTime
+    };
+
+    // Calculate progress based on completed checkpoints
+    const completedCount = updatedCheckpoints.filter(cp => cp.status === 'completed').length;
+    const progress = (completedCount / checkpoints.length) * 100;
+
+    // Update the reservation document
+    await reservationRef.update({
+      trucks: updatedTrucks,
+      updatedAt: currentTime,
+      progress: progress
+    });
+
+    res.json({
+      success: true,
+      message: 'Checkpoint status updated successfully',
+      checkpoint: updatedCheckpoints[checkpointIndex],
+      progress,
+      currentCheckpoint: checkpointIndex + (status === 'completed' ? 1 : 0)
+    });
+
+  } catch (error) {
+    console.error('Error updating checkpoint status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to update checkpoint status'
+    });
   }
 });
 
@@ -151,6 +314,165 @@ app.post("/checkpoint", async (req, res) => {
     res.json({ success: true, tx });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Update checkpoint status endpoint
+app.put("/api/checkpoints/:reservationId/status", async (req, res) => {
+  try {
+    const { reservationId } = req.params;
+    const { checkpointIndex, status, timestamp, location } = req.body;
+
+    // Input validation
+    if (!reservationId || status === undefined || checkpointIndex === undefined) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields'
+      });
+    }
+
+    // Reference to the reservation document
+    const reservationRef = db.collection('truckReservations').doc(reservationId);
+    const reservationDoc = await reservationRef.get();
+
+    if (!reservationDoc.exists) {
+      return res.status(404).json({
+        success: false,
+        error: 'Reservation not found'
+      });
+    }
+
+    const reservationData = reservationDoc.data();
+    const trucks = reservationData.trucks || [];
+    
+    // Find the truck with the assigned driver
+    const truckIndex = trucks.findIndex(t => t.assignedDriver?.id === driverId);
+    
+    if (truckIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'Driver not assigned to any truck in this reservation'
+      });
+    }
+
+    const truck = trucks[truckIndex];
+    const checkpoints = truck.checkpoints || [];
+
+    if (checkpointIndex >= checkpoints.length) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid checkpoint index'
+      });
+    }
+
+    // Update the checkpoint status
+    const updatedTrucks = [...trucks];
+    const updatedCheckpoints = [...checkpoints];
+
+    updatedCheckpoints[checkpointIndex] = {
+      ...checkpoints[checkpointIndex],
+      status,
+      completed: status === 'completed',
+      lastUpdated: timestamp || new Date().toISOString(),
+      lastUpdatedBy: driverId,
+      currentLocation: location || null
+    };
+
+    // Initialize or update status history
+    if (!updatedCheckpoints[checkpointIndex].statusHistory) {
+      updatedCheckpoints[checkpointIndex].statusHistory = [];
+    }
+
+    updatedCheckpoints[checkpointIndex].statusHistory.push({
+      status,
+      timestamp: timestamp || new Date().toISOString(),
+      updatedBy: driverId,
+      location
+    });
+
+    // Update the truck's checkpoints
+    updatedTrucks[truckIndex] = {
+      ...truck,
+      checkpoints: updatedCheckpoints,
+      currentCheckpoint: status === 'completed' ? checkpointIndex + 1 : checkpointIndex,
+      completedCheckpoints: updatedCheckpoints.filter(cp => cp.status === 'completed').length,
+      lastCheckpointUpdate: timestamp || new Date().toISOString()
+    };
+
+    // Calculate progress
+    const totalCheckpoints = checkpoints.length;
+    const completedCount = updatedCheckpoints.filter(cp => cp.status === 'completed').length;
+    const progress = (completedCount / totalCheckpoints) * 100;
+
+    // Update the reservation
+    await reservationRef.update({
+      trucks: updatedTrucks,
+      updatedAt: timestamp || new Date(),
+      progress: progress,
+      lastCheckpointUpdate: timestamp || new Date()
+    });
+
+    res.json({
+      success: true,
+      message: 'Checkpoint status updated successfully',
+      reservationId,
+      checkpointIndex,
+      status,
+      progress
+    });
+
+    // If this is the current checkpoint and it's completed, update the route's current checkpoint
+    if (status === 'completed') {
+      const routeRef = db.collection('routes').where('checkpoints', 'array-contains', checkpointId);
+      const routeSnapshot = await routeRef.get();
+
+      if (!routeSnapshot.empty) {
+        const routeDoc = routeSnapshot.docs[0];
+        const checkpoints = routeDoc.data().checkpoints || [];
+        const currentIndex = checkpoints.indexOf(checkpointId);
+        
+        if (currentIndex !== -1 && currentIndex < checkpoints.length - 1) {
+          // Update to next checkpoint
+          await routeDoc.ref.update({
+            currentCheckpoint: checkpoints[currentIndex + 1],
+            lastCheckpointCompleted: checkpointId,
+            lastUpdateTimestamp: timestamp || new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    // Update delivery progress if truck ID is provided
+    if (truckId) {
+      const deliveryRef = db.collection('deliveries').doc(truckId);
+      const deliveryDoc = await deliveryRef.get();
+
+      if (deliveryDoc.exists) {
+        const totalCheckpoints = deliveryDoc.data().totalCheckpoints || 1;
+        const completedCheckpoints = (deliveryDoc.data().completedCheckpoints || 0) + (status === 'completed' ? 1 : 0);
+        const progress = (completedCheckpoints / totalCheckpoints) * 100;
+
+        await deliveryRef.update({
+          completedCheckpoints,
+          progress,
+          lastCheckpointUpdate: timestamp || new Date().toISOString()
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Checkpoint status updated successfully',
+      checkpointId,
+      status
+    });
+
+  } catch (error) {
+    console.error('Error updating checkpoint status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to update checkpoint status'
+    });
   }
 });
 
@@ -2037,7 +2359,7 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
 // Create truck reservation
 app.post('/api/reservations', async (req, res) => {
   try {
-    const { businessUid, customerInfo, trucks } = req.body;
+    const { businessUid, customerInfo, trucks , deliveryStatus } = req.body;
     
     // Validation
     if (!businessUid || !trucks || !Array.isArray(trucks) || trucks.length === 0) {
@@ -2061,6 +2383,7 @@ app.post('/api/reservations', async (req, res) => {
       businessUid,
       customerInfo: customerInfo || {},
       trucks,
+      deliveryStatus,
       submittedAt: new Date()
     };
     
