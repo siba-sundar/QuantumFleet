@@ -13,25 +13,34 @@ import {
   Bell,
   CheckCircle,
   X,
+  Airplay,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import {
+  apiFinalizeDelivery,
+  apiAddCheckpoint,
+} from "../../../utils/blockchain_apis";
+import UpdateDeliveryStatus from "../../common/blockchain/UpdateDeliveryStatus.jsx";
+import FinalizeDelivery from "../../common/blockchain/FinalizeDelivery.jsx";
+
 function TruckDetails() {
   const { user } = useAuth();
   const [trucks, setTrucks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [alerts, setAlerts] = useState([]); // Initialize alerts state
-  const [sosSending, setSosSending] = useState(false); // Initialize SOS sending state
-  const [showSOSDialog, setShowSOSDialog] = useState(false); // Initialize SOS dialog visibility
-  const [sosType, setSOSType] = useState("general"); // Default SOS type
-  const [sosMessage, setSOSMessage] = useState(""); // Initialize SOS message state
-  const [sosUrgency, setSOSUrgency] = useState("high"); // Default SOS urgency
-  const [incomingAlerts, setIncomingAlerts] = useState([]); // Initialize incoming alerts state
-  const [showIncomingAlerts, setShowIncomingAlerts] = useState(false); // Initialize incoming alerts visibility
-  const [driverProfile, setDriverProfile] = useState(null); // Initialize driver profile state
-  const [statusNote, setStatusNote] = useState(""); // For status update notes
-  const [statusUpdates, setStatusUpdates] = useState([]); // For tracking status update history
-  const [selectedStatus, setSelectedStatus] = useState(""); // For tracking selected status before update
-  const [showFinalizeModal, setShowFinalizeModal] = useState(false); // For finalize delivery modal
+  const [alerts, setAlerts] = useState([]);
+  const [sosSending, setSosSending] = useState(false);
+  const [isFinalizing, setisFinalizing] = useState(false);
+  const [showSOSDialog, setShowSOSDialog] = useState(false);
+  const [sosType, setSOSType] = useState("general");
+  const [sosMessage, setSOSMessage] = useState("");
+  const [sosUrgency, setSOSUrgency] = useState("high");
+  const [incomingAlerts, setIncomingAlerts] = useState([]);
+  const [showIncomingAlerts, setShowIncomingAlerts] = useState(false);
+  const [driverProfile, setDriverProfile] = useState(null);
+  const [statusNote, setStatusNote] = useState("");
+  const [statusUpdates, setStatusUpdates] = useState([]);
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [finalizeForm, setFinalizeForm] = useState({
     orderId: "",
     walletAddress: "",
@@ -47,46 +56,38 @@ function TruckDetails() {
     condition: "good",
   });
 
-  // Function to update delivery status
-  const updateDeliveryStatus = async (status, notes = "" ) => {
-    if (!selectedTruck?.reservationId) {
-      toast.error("No reservation ID found");
+  // Function to update delivery status with blockchain integration
+  const updateDeliveryStatus = async (status, notes = "") => {
+    if (!selectedTruck?.orderId) {
+      toast.error("No order ID found");
       return;
     }
 
     try {
-      const response = await fetch(
-        `/api/deliveries/${selectedTruck.reservationId}/status`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            status,
-            notes,
-            timestamp: new Date().toISOString(),
-          }),
-        }
+      // Update checkpoint and status on blockchain
+      await apiAddCheckpoint(
+        selectedTruck.orderId,
+        currentLocation?.latitude * 1e6 || 0,
+        currentLocation?.longitude * 1e6 || 0,
+        Math.floor(Date.now() / 1000),
+        status
       );
-
-      if (!response.ok) {
-        throw new Error("Failed to update delivery status");
-      }
-
-      const result = await response.json();
 
       // Update local state
       setTrucks((prevTrucks) =>
         prevTrucks.map((truck) =>
-          truck.reservationId === selectedTruck.reservationId
+          truck.orderId === selectedTruck.orderId
             ? {
                 ...truck,
                 deliveryStatus: status,
-                lastStatusUpdate: result.statusUpdate.timestamp,
+                lastStatusUpdate: new Date().toISOString(),
                 statusHistory: [
                   ...(truck.statusHistory || []),
-                  result.statusUpdate,
+                  {
+                    status,
+                    notes,
+                    timestamp: new Date().toISOString(),
+                  },
                 ],
               }
             : truck
@@ -94,12 +95,21 @@ function TruckDetails() {
       );
 
       // Update status updates history
-      setStatusUpdates((prev) => [...prev, result.statusUpdate]);
+      setStatusUpdates((prev) => [
+        ...prev,
+        {
+          status,
+          notes,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
       setStatusNote(""); // Clear the notes
       toast.success("Delivery status updated successfully");
     } catch (error) {
       console.error("Error updating delivery status:", error);
-      toast.error("Failed to update delivery status");
+      toast.error(
+        error.response?.data?.error || "Failed to update delivery status"
+      );
     }
   };
 
@@ -116,7 +126,9 @@ function TruckDetails() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE}/api/deliveries/${selectedTruck.reservationId}/checkpoint`,
+        `${import.meta.env.VITE_API_BASE}/api/deliveries/${
+          selectedTruck.reservationId
+        }/checkpoint`,
         {
           method: "PUT",
           headers: {
@@ -708,6 +720,30 @@ function TruckDetails() {
       };
     });
   }, [routeInfo]);
+
+  const handleFinalizeDelivery = async (orderId, payee = 0, signer) => {
+    try {
+      const result = await apiFinalizeDelivery(signer, orderId, payee);
+
+      toast.success("Delivery finalized successfully");
+
+      setTrucks((prevTrucks) =>
+        prevTrucks.map((truck) =>
+          truck.orderId === orderId
+            ? {
+                ...truck,
+                status: "Delivered",
+                isFinalized: true,
+                finalizedAt: new Date().toISOString(),
+              }
+            : truck
+        )
+      );
+    } catch (error) {
+      console.error("Error finalizing delivery:", error);
+      toast.error(error.response?.data?.error || "Failed to finalize delivery");
+    }
+  };
 
   // Generate Google Maps Embed URL with directions and waypoints
   const googleMapsEmbedData = useMemo(() => {
@@ -1505,99 +1541,74 @@ function TruckDetails() {
 
           {/* Right Column - Sidebar (1/3 width on large screens) */}
           <div className="space-y-6">
-            {/* Delivery Status Update Card */}
+            {/* Truck Details Card */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center mb-4">
-                <ActivitySquare className="w-6 h-6 text-indigo-600 mr-3" />
+                <Truck className="w-6 h-6 text-gray-600 mr-3" />
                 <h2 className="text-lg font-bold text-gray-900">
-                  Delivery Status
+                  Truck Details
                 </h2>
               </div>
 
-              <div className="space-y-4">
-                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg p-4 border border-indigo-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-indigo-900">
-                      Current Status
-                    </span>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        truckDetails.deliveryStatus === "Reserved"
-                          ? "bg-blue-100 text-blue-800"
-                          : truckDetails.deliveryStatus === "Active"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {truckDetails.deliveryStatus}
-                    </span>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-1">
+                      License Plate
+                    </p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {truckDetails.licensePlate}
+                    </p>
                   </div>
-
-                  <div className="space-y-3">
-                    <select
-                      className="w-full p-2 border border-indigo-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      value={selectedStatus || truckDetails.deliveryStatus}
-                      onChange={(e) => setSelectedStatus(e.target.value)}
-                    >
-                      <option value="Loading">🔄 Loading in Progress</option>
-                      <option value="In Transit">🚚 In Transit</option>
-                      <option value="Delivering">📦 Delivering</option>
-                      <option value="Completed">✅ Completed</option>
-                      <option value="Delayed">⚠️ Delayed</option>
-                    </select>
-
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Add status note (optional)"
-                        value={statusNote}
-                        onChange={(e) => setStatusNote(e.target.value)}
-                        className="flex-1 p-2 border border-indigo-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                      <button
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-                        onClick={() => updateDeliveryStatus(selectedStatus, statusNote)}
-                        disabled={!selectedStatus}
-                      >
-                        Update
-                      </button>
-                    </div>
-
-                    <div className="mt-4 flex justify-center">
-                      <button
-                        onClick={() => setShowFinalizeModal(true)}
-                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center"
-                      >
-                        <CheckSquare className="w-4 h-4 mr-2" />
-                        Finalize Delivery
-                      </button>
-                    </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-1">
+                      Model
+                    </p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {truckDetails.model}
+                    </p>
                   </div>
                 </div>
 
-                <div className="border-t border-indigo-100 pt-3">
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">
-                    Recent Updates
-                  </h3>
-                  <div className="space-y-2 max-h-32 overflow-y-auto">
-                    <div className="text-sm p-2 rounded bg-gray-50">
-                      <p className="text-gray-800 font-medium">
-                        Status changed to: In Transit
-                      </p>
-                      <p className="text-xs text-gray-500">Today at 10:30 AM</p>
-                    </div>
-                    <div className="text-sm p-2 rounded bg-gray-50">
-                      <p className="text-gray-800 font-medium">
-                        Loading completed at warehouse
-                      </p>
-                      <p className="text-xs text-gray-500">Today at 9:15 AM</p>
-                    </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-1">
+                      Driver
+                    </p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {truckDetails.driver}
+                    </p>
                   </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-1">
+                      Capacity
+                    </p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {truckDetails.capacity}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-500 font-medium mb-1">
+                    License Number
+                  </p>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {truckDetails.licenseNumber}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-500 font-medium mb-1">
+                    Last Maintenance
+                  </p>
+                  <p className="text-sm font-semibold text-gray-800">
+                    {truckDetails.lastMaintenance}
+                  </p>
                 </div>
               </div>
             </div>
 
-            {/* Route Checkpoints Card */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center mb-4">
                 <CheckCircle className="w-6 h-6 text-purple-600 mr-3" />
@@ -1637,7 +1648,6 @@ function TruckDetails() {
                     </div>
                   </div>
 
-                  {/* Next Checkpoint Highlight */}
                   {nextCheckpoint && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                       <div className="flex items-center mb-2">
@@ -1656,7 +1666,6 @@ function TruckDetails() {
                     </div>
                   )}
 
-                  {/* Checkpoints List */}
                   <div className="max-h-[600px] overflow-y-auto space-y-3 pr-2">
                     {checkpointsForDisplay.map((cp, idx) => (
                       <div
@@ -1740,7 +1749,6 @@ function TruckDetails() {
                               </div>
                             )}
 
-                            {/* Instructions */}
                             {cp.details?.handlingInstructions && (
                               <p className="text-xs text-gray-600 italic mt-1 leading-tight">
                                 "{cp.details.handlingInstructions}"
@@ -1748,7 +1756,6 @@ function TruckDetails() {
                             )}
                           </div>
 
-                          {/* Status Badge */}
                           {cp.isCurrent && (
                             <span className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium">
                               Current
@@ -1827,71 +1834,19 @@ function TruckDetails() {
               )}
             </div>
 
-            {/* Truck Details Card */}
+            {/* Blockchain Delivery Management Card */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center mb-4">
-                <Truck className="w-6 h-6 text-gray-600 mr-3" />
+                <Airplay className="w-6 h-6 text-indigo-600 mr-3" />
                 <h2 className="text-lg font-bold text-gray-900">
-                  Truck Details
+                  Delivery Management
                 </h2>
               </div>
 
-              <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium mb-1">
-                      License Plate
-                    </p>
-                    <p className="text-sm font-semibold text-gray-800">
-                      {truckDetails.licensePlate}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium mb-1">
-                      Model
-                    </p>
-                    <p className="text-sm font-semibold text-gray-800">
-                      {truckDetails.model}
-                    </p>
-                  </div>
-                </div>
+              <div className="space-y-4 grid md:grid-cols-2 lg:grid-cols-1">
+                <UpdateDeliveryStatus />
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium mb-1">
-                      Driver
-                    </p>
-                    <p className="text-sm font-semibold text-gray-800">
-                      {truckDetails.driver}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium mb-1">
-                      Capacity
-                    </p>
-                    <p className="text-sm font-semibold text-gray-800">
-                      {truckDetails.capacity}
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xs text-gray-500 font-medium mb-1">
-                    License Number
-                  </p>
-                  <p className="text-sm font-semibold text-gray-800">
-                    {truckDetails.licenseNumber}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs text-gray-500 font-medium mb-1">
-                    Last Maintenance
-                  </p>
-                  <p className="text-sm font-semibold text-gray-800">
-                    {truckDetails.lastMaintenance}
-                  </p>
-                </div>
+                <FinalizeDelivery />
               </div>
             </div>
           </div>
@@ -2286,7 +2241,9 @@ function TruckDetails() {
                     onClick={() => {
                       updateCheckpointStatus(
                         0, // first truck in the array
-                        selectedTruck.trucks[0].checkpoints.indexOf(selectedCheckpoint),
+                        selectedTruck.trucks[0].checkpoints.indexOf(
+                          selectedCheckpoint
+                        ),
                         checkpointForm.status,
                         checkpointForm.notes
                       );

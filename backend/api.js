@@ -5,7 +5,7 @@ import { createServer } from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-
+import {ethers} from 'ethers'
 // Import GPS tracking services
 import gpsRoutes from './src/routes/gpsRoutes.js';
 import webSocketService from './src/services/webSocketService.js';
@@ -33,7 +33,9 @@ import {
   grantRole,
   revokeRole,
   hasRole,
+  loadContracts
 } from "./src/config/blockchain.js"
+
 // Use backend BaseRepository for business profiles to avoid importing frontend code
 
 // Import sentiment analysis service
@@ -111,18 +113,95 @@ app.post("/delivery/finalize", async (req, res) => {
     const { orderId, payee, deadline, sig } = req.body;
     const { v, r, s } = sig;
 
+    console.log("---- Finalize Request ----");
+    console.log("OrderId:", orderId);
+    console.log("Payee:", payee);
+    console.log("Deadline:", deadline);
+    console.log("v:", v);
+    console.log("r:", r);
+    console.log("s:", s);
+
+    // Call the smart contract
     const podTx = await finalizePoD(orderId, payee, deadline, { v, r, s });
 
-    res.json({
+    // ✅ Success response
+    return res.json({
       success: true,
       message: "Delivery finalized (PoD + Payment Released)",
-      data: { podTx },
+      data: { txHash: podTx.hash || podTx }, // normalize
     });
+
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    console.error("❌ Finalize backend error:", err);
+
+    // Default error response
+    let errorMsg = "Transaction failed";
+
+    // 🛠 Try to extract reason from ethers.js error
+    if (err.reason) {
+      errorMsg = err.reason; // for revert("...")
+    } else if (err.error && err.error.message) {
+      errorMsg = err.error.message;
+    } else if (err.data && err.data.message) {
+      errorMsg = err.data.message;
+    } else if (err.message) {
+      errorMsg = err.message;
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: errorMsg,
+    });
   }
 });
+app.post("/delivery/status", async (req, res) => {
+  try {
+    const { orderId, status, deadline, signature, signer } = req.body;
 
+    const {deliveryContract} = await loadContracts();
+
+    // EIP-712 domain + types
+    const domain = {
+      name: "DeliveryManagement",
+      version: "1",
+      chainId: 11155111, // Sepolia
+      verifyingContract: deliveryContract.address,
+    };
+
+    const types = {
+      StatusUpdate: [
+        { name: "orderId", type: "uint256" },
+        { name: "status", type: "uint8" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint256" },
+      ],
+    };
+
+    // ⚡ either fetch from contract or hardcode 0 if unused
+    const nonce = 0; // await deliveryContract.call("nonces", [orderId]);
+
+    const value = { orderId, status, nonce, deadline };
+
+    // Recover signer
+    const recovered = ethers.verifyTypedData(domain, types, value, signature);
+
+    if (recovered.toLowerCase() !== signer.toLowerCase()) {
+      return res.status(400).json({ success: false, error: "Invalid signature" });
+    }
+
+    // Relay transaction via relayer wallet
+    const tx = await deliveryContract.call("setStatus", [orderId, status]);
+    
+    res.json({
+      success: true,
+      message: "Delivery status updated (gasless)",
+      tx,
+    });
+  } catch (err) {
+    console.error("❌ Status error:", err);
+    res.status(500).json({ success: false, error: err.reason || err.message });
+  }
+});
 /**
  * 3️⃣ Cancel Delivery Flow
  * - Refunds escrow payment
@@ -241,7 +320,8 @@ app.post("/access/revoke", async (req, res) => {
 app.get("/access/has/:account/:role", async (req, res) => {
   try {
     const { account, role } = req.params;
-    const result = await hasRole(account, role);
+    console.log(`account : ${account} : role : ${role}`)
+    const result = await hasRole(account, parseInt(role));
     res.json({ success: true, hasRole: result });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
