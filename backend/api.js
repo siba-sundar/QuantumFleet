@@ -16,12 +16,24 @@ import { TruckReservationRepository } from './src/repositories/TruckReservationR
 import { BaseRepository } from './src/repositories/BaseRepository.js';
 import { SentimentRepository, EnhancedDriverRepository } from './src/repositories/SentimentRepository.js';
 import { LocationCacheRepository } from './src/repositories/LocationCacheRepository.js';
-
-// blockchain route imports
-import { grantRole , revokeRole , hasRole } from "./src/services/accessService.js";
-import { updateDelivery,createDelivery,getDelivery,markDeliveredFromPoD } from "./src/services/deliveryService.js";
-import {addCheckpoint,finalize,getCheckpoints,initProof,isFinalized,proofExists} from './src/services/podService.js'
-
+import {
+    createDelivery,
+  assignCarrier,
+  setStatus,
+  markDeliveredFromPoD,
+  getDelivery,
+  createEscrowETH,
+  refund,
+  getEscrow,
+  initProof,
+  addCheckpoint,
+  finalizePoD,  
+  isFinalized,
+  getCheckpoints,
+  grantRole,
+  revokeRole,
+  hasRole,
+} from "./src/config/blockchain.js"
 // Use backend BaseRepository for business profiles to avoid importing frontend code
 
 // Import sentiment analysis service
@@ -60,17 +72,159 @@ webSocketService.initialize(server);
 app.use(cors());
 app.use(express.json());
 
-// ========================
-// |   Blockchain Routes  |
-// ========================
-// Access Routes
+/* ============================================================
+   🚀 Composite API Endpoints for Fleet Management System
+   ============================================================ */
+
+/**
+ * 1️⃣ Create Full Delivery Flow
+ * - Creates delivery order
+ * - Creates escrow and locks funds
+ * - Initializes Proof of Delivery
+ */
+app.post("/delivery/create", async (req, res) => {
+  try {
+    const { truckId, origin, destination, eta, payee, amount } = req.body;
+
+    const deliveryTx = await createDelivery(truckId, origin, destination, eta);
+    const escrowTx = await createEscrowETH(deliveryTx.id, payee, amount);
+    const podTx = await initProof(deliveryTx.id);
+
+    res.json({
+      success: true,
+      message: "Delivery created successfully",
+      data: { deliveryTx, escrowTx, podTx },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 2️⃣ Finalize Delivery Flow
+ * - Verifies carrier signature (EIP-712)
+ * - Marks delivery as delivered via PoD
+ * - Releases escrow payment automatically
+ */
+app.post("/delivery/finalize", async (req, res) => {
+  try {
+    const { orderId, payee, deadline, sig } = req.body;
+    const { v, r, s } = sig;
+
+    const podTx = await finalizePoD(orderId, payee, deadline, { v, r, s });
+
+    res.json({
+      success: true,
+      message: "Delivery finalized (PoD + Payment Released)",
+      data: { podTx },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 3️⃣ Cancel Delivery Flow
+ * - Refunds escrow payment
+ * - Cancels delivery status
+ */
+app.post("/delivery/cancel", async (req, res) => {
+  try {
+    const { orderId } = req.body;
+
+    const refundTx = await refund(orderId);
+    const statusTx = await setStatus(orderId, "Cancelled");
+
+    res.json({
+      success: true,
+      message: "Delivery cancelled and escrow refunded",
+      data: { refundTx, statusTx },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 4️⃣ Assign Carrier & Link Escrow
+ * - Assigns carrier to delivery
+ * - Fetches escrow details
+ */
+app.post("/delivery/assign-carrier", async (req, res) => {
+  try {
+    const { orderId, carrier } = req.body;
+
+    const assignTx = await assignCarrier(orderId, carrier);
+    const escrowTx = await getEscrow(orderId);
+
+    res.json({
+      success: true,
+      message: "Carrier assigned and escrow linked",
+      data: { assignTx, escrowTx },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 5️⃣ Live Tracking (Checkpoint + Status Update)
+ * - Adds checkpoint to PoD
+ * - Updates delivery status
+ */
+app.post("/delivery/checkpoint", async (req, res) => {
+  try {
+    const { orderId, latE6, lonE6, ts, status } = req.body;
+
+    const cpTx = await addCheckpoint(orderId, latE6, lonE6, ts);
+    const statusTx = await setStatus(orderId, status);
+
+    res.json({
+      success: true,
+      message: "Checkpoint added and status updated",
+      data: { cpTx, statusTx },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * 6️⃣ Full Delivery Audit (Read-Only)
+ * - Fetches delivery details
+ * - Fetches escrow details
+ * - Fetches PoD checkpoints + finalization
+ */
+app.get("/delivery/:orderId/audit", async (req, res) => {
+  try {
+    const orderId = req.params.orderId;
+
+    const delivery = await getDelivery(orderId);
+    const escrow = await getEscrow(orderId);
+    const checkpoints = await getCheckpoints(orderId);
+    const finalized = await isFinalized(orderId);
+
+    res.json({
+      success: true,
+      message: "Full delivery audit retrieved",
+      data: { delivery, escrow, checkpoints, finalized },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/* ============================================================
+   🔑 Access Control API Endpoints
+   ============================================================ */
+
 app.post("/access/grant", async (req, res) => {
   try {
     const { account, role } = req.body;
     const tx = await grantRole(account, role);
-    res.json({ success: true, tx });
+    res.json({ success: true, message: "Role granted", tx });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -78,9 +232,9 @@ app.post("/access/revoke", async (req, res) => {
   try {
     const { account, role } = req.body;
     const tx = await revokeRole(account, role);
-    res.json({ success: true, tx });
+    res.json({ success: true, message: "Role revoked", tx });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -88,422 +242,12 @@ app.get("/access/has/:account/:role", async (req, res) => {
   try {
     const { account, role } = req.params;
     const result = await hasRole(account, role);
-    res.json({ hasRole: result });
+    res.json({ success: true, hasRole: result });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// Delivery Routes
-// Create delivery
-app.post("/delivery/create", async (req, res) => {
-  try {
-    const { orderId, sender, receiver, details } = req.body;
-    const tx = await createDelivery(orderId, sender, receiver, details);
-    res.json({ success: true, tx });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.put("/api/deliveries/:reservationId/status", async (req, res) => {
-  try {
-    const { reservationId } = req.params;
-    const { status, timestamp, notes } = req.body;
-
-    // Input validation
-    if (!reservationId || !status) {
-      return res.status(400).json({
-        success: false,
-        error: 'Reservation ID and status are required'
-      });
-    }
-
-    // Update delivery status in Firebase
-    const reservationRef = db.collection('truckReservations').doc(reservationId);
-    const reservationDoc = await reservationRef.get();
-
-    if (!reservationDoc.exists) {
-      return res.status(404).json({
-        success: false,
-        error: 'Reservation not found'
-      });
-    }
-
-    // Create status update object
-    const statusUpdate = {
-      status,
-      timestamp: timestamp || new Date().toISOString(),
-      notes: notes || ''
-    };
-
-    // Update the reservation document with new status and history
-    await reservationRef.update({
-      deliveryStatus: status,
-      lastStatusUpdate: statusUpdate.timestamp,
-      updatedAt: statusUpdate.timestamp,
-      'statusHistory': admin.firestore.FieldValue.arrayUnion(statusUpdate)
-    });
-
-    res.json({
-      success: true,
-      message: 'Delivery status updated successfully',
-      statusUpdate
-    });
-
-  } catch (error) {
-    console.error('Error updating delivery status:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to update delivery status'
-    });
-  }
-});
-
-// Update checkpoint status endpoint
-app.put("/api/deliveries/:reservationId/checkpoint", async (req, res) => {
-  try {
-    const { reservationId } = req.params;
-    const { truckIndex, checkpointIndex, status, timestamp, notes } = req.body;
-    console.log("Reservation ID : " + reservationId)
-    console.log(`Checkpoint idx : ${checkpointIndex}`)
-    console.log(`Status : ${status}`)
-    // Input validation
-    if (!reservationId || typeof truckIndex !== 'number' || typeof checkpointIndex !== 'number' || !status) {
-      return res.status(400).json({
-        success: false,
-        error: 'Reservation ID, truck index, checkpoint index, and status are required'
-      });
-    }
-
-    // Get reservation document
-    const reservationRef = db.collection('truckReservations').doc(reservationId);
-    const reservationDoc = await reservationRef.get();
-
-    if (!reservationDoc.exists) {
-      return res.status(404).json({
-        success: false,
-        error: 'Reservation not found'
-      });
-    }
-
-    const reservationData = reservationDoc.data();
-    const trucks = reservationData.trucks || [];
-
-    // Validate truck index
-    if (truckIndex >= trucks.length) {
-      return res.status(404).json({
-        success: false,
-        error: 'Truck not found in this reservation'
-      });
-    }
-
-    const truck = trucks[truckIndex];
-    const checkpoints = truck.checkpoints || [];
-
-    // Validate checkpoint index
-    if (checkpointIndex >= checkpoints.length) {
-      return res.status(404).json({
-        success: false,
-        error: 'Checkpoint index out of range'
-      });
-    }
-
-    // Create checkpoint update
-    const currentTime = new Date().toISOString();
-    const checkpointUpdate = {
-      status,
-      timestamp: timestamp || currentTime,
-      notes: notes || ''
-    };
-
-    // Update the checkpoints array in the truck
-    const updatedTrucks = [...trucks];
-    const updatedCheckpoints = [...checkpoints];
-    
-    updatedCheckpoints[checkpointIndex] = {
-      ...checkpoints[checkpointIndex],
-      ...checkpointUpdate,
-      lastUpdated: currentTime
-    };
-
-    // Initialize or update status history
-    if (!updatedCheckpoints[checkpointIndex].statusHistory) {
-      updatedCheckpoints[checkpointIndex].statusHistory = [];
-    }
-    updatedCheckpoints[checkpointIndex].statusHistory.push(checkpointUpdate);
-
-    // Update the truck's checkpoints
-    updatedTrucks[truckIndex] = {
-      ...truck,
-      checkpoints: updatedCheckpoints,
-      lastCheckpointUpdate: currentTime
-    };
-
-    // Calculate progress based on completed checkpoints
-    const completedCount = updatedCheckpoints.filter(cp => cp.status === 'completed').length;
-    const progress = (completedCount / checkpoints.length) * 100;
-
-    // Update the reservation document
-    await reservationRef.update({
-      trucks: updatedTrucks,
-      updatedAt: currentTime,
-      progress: progress
-    });
-
-    res.json({
-      success: true,
-      message: 'Checkpoint status updated successfully',
-      checkpoint: updatedCheckpoints[checkpointIndex],
-      progress,
-      currentCheckpoint: checkpointIndex + (status === 'completed' ? 1 : 0)
-    });
-
-  } catch (error) {
-    console.error('Error updating checkpoint status:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to update checkpoint status'
-    });
-  }
-});
-
-app.post("/delivery/update", async (req, res) => {
-  try {
-    const { orderId, status } = req.body;
-    const tx = await updateDelivery(orderId, status);
-    res.json({ success: true, tx });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post("/delivery/mark-delivered", async (req, res) => {
-  try {
-    const { orderId } = req.body;
-    const tx = await markDeliveredFromPoD(orderId);
-    res.json({ success: true, tx });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/delivery/:orderId", async (req, res) => {
-  try {
-    const delivery = await getDelivery(req.params.orderId);
-    res.json({ delivery });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-// Proof Of Delivery Routes
-app.post("/init", async (req, res) => {
-  try {
-    const { orderId } = req.body;
-    const tx = await initProof(orderId);
-    res.json({ success: true, tx });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post("/checkpoint", async (req, res) => {
-  try {
-    const { orderId, latE6, lonE6, ts } = req.body;
-    const tx = await addCheckpoint(orderId, latE6, lonE6, ts);
-    res.json({ success: true, tx });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Update checkpoint status endpoint
-app.put("/api/checkpoints/:reservationId/status", async (req, res) => {
-  try {
-    const { reservationId } = req.params;
-    const { checkpointIndex, status, timestamp, location } = req.body;
-
-    // Input validation
-    if (!reservationId || status === undefined || checkpointIndex === undefined) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields'
-      });
-    }
-
-    // Reference to the reservation document
-    const reservationRef = db.collection('truckReservations').doc(reservationId);
-    const reservationDoc = await reservationRef.get();
-
-    if (!reservationDoc.exists) {
-      return res.status(404).json({
-        success: false,
-        error: 'Reservation not found'
-      });
-    }
-
-    const reservationData = reservationDoc.data();
-    const trucks = reservationData.trucks || [];
-    
-    // Find the truck with the assigned driver
-    const truckIndex = trucks.findIndex(t => t.assignedDriver?.id === driverId);
-    
-    if (truckIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        error: 'Driver not assigned to any truck in this reservation'
-      });
-    }
-
-    const truck = trucks[truckIndex];
-    const checkpoints = truck.checkpoints || [];
-
-    if (checkpointIndex >= checkpoints.length) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid checkpoint index'
-      });
-    }
-
-    // Update the checkpoint status
-    const updatedTrucks = [...trucks];
-    const updatedCheckpoints = [...checkpoints];
-
-    updatedCheckpoints[checkpointIndex] = {
-      ...checkpoints[checkpointIndex],
-      status,
-      completed: status === 'completed',
-      lastUpdated: timestamp || new Date().toISOString(),
-      lastUpdatedBy: driverId,
-      currentLocation: location || null
-    };
-
-    // Initialize or update status history
-    if (!updatedCheckpoints[checkpointIndex].statusHistory) {
-      updatedCheckpoints[checkpointIndex].statusHistory = [];
-    }
-
-    updatedCheckpoints[checkpointIndex].statusHistory.push({
-      status,
-      timestamp: timestamp || new Date().toISOString(),
-      updatedBy: driverId,
-      location
-    });
-
-    // Update the truck's checkpoints
-    updatedTrucks[truckIndex] = {
-      ...truck,
-      checkpoints: updatedCheckpoints,
-      currentCheckpoint: status === 'completed' ? checkpointIndex + 1 : checkpointIndex,
-      completedCheckpoints: updatedCheckpoints.filter(cp => cp.status === 'completed').length,
-      lastCheckpointUpdate: timestamp || new Date().toISOString()
-    };
-
-    // Calculate progress
-    const totalCheckpoints = checkpoints.length;
-    const completedCount = updatedCheckpoints.filter(cp => cp.status === 'completed').length;
-    const progress = (completedCount / totalCheckpoints) * 100;
-
-    // Update the reservation
-    await reservationRef.update({
-      trucks: updatedTrucks,
-      updatedAt: timestamp || new Date(),
-      progress: progress,
-      lastCheckpointUpdate: timestamp || new Date()
-    });
-
-    res.json({
-      success: true,
-      message: 'Checkpoint status updated successfully',
-      reservationId,
-      checkpointIndex,
-      status,
-      progress
-    });
-
-    // If this is the current checkpoint and it's completed, update the route's current checkpoint
-    if (status === 'completed') {
-      const routeRef = db.collection('routes').where('checkpoints', 'array-contains', checkpointId);
-      const routeSnapshot = await routeRef.get();
-
-      if (!routeSnapshot.empty) {
-        const routeDoc = routeSnapshot.docs[0];
-        const checkpoints = routeDoc.data().checkpoints || [];
-        const currentIndex = checkpoints.indexOf(checkpointId);
-        
-        if (currentIndex !== -1 && currentIndex < checkpoints.length - 1) {
-          // Update to next checkpoint
-          await routeDoc.ref.update({
-            currentCheckpoint: checkpoints[currentIndex + 1],
-            lastCheckpointCompleted: checkpointId,
-            lastUpdateTimestamp: timestamp || new Date().toISOString()
-          });
-        }
-      }
-    }
-
-    // Update delivery progress if truck ID is provided
-    if (truckId) {
-      const deliveryRef = db.collection('deliveries').doc(truckId);
-      const deliveryDoc = await deliveryRef.get();
-
-      if (deliveryDoc.exists) {
-        const totalCheckpoints = deliveryDoc.data().totalCheckpoints || 1;
-        const completedCheckpoints = (deliveryDoc.data().completedCheckpoints || 0) + (status === 'completed' ? 1 : 0);
-        const progress = (completedCheckpoints / totalCheckpoints) * 100;
-
-        await deliveryRef.update({
-          completedCheckpoints,
-          progress,
-          lastCheckpointUpdate: timestamp || new Date().toISOString()
-        });
-      }
-    }
-
-    res.json({
-      success: true,
-      message: 'Checkpoint status updated successfully',
-      checkpointId,
-      status
-    });
-
-  } catch (error) {
-    console.error('Error updating checkpoint status:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Failed to update checkpoint status'
-    });
-  }
-});
-
-app.post("/finalize", async (req, res) => {
-  try {
-    const { orderId } = req.body;
-    const tx = await finalize(orderId);
-    res.json({ success: true, tx });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/:orderId/checkpoints", async (req, res) => {
-  try {
-    const checkpoints = await getCheckpoints(req.params.orderId);
-    res.json({ checkpoints });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/:orderId/status", async (req, res) => {
-  try {
-    const exists = await proofExists(req.params.orderId);
-    const finalized = await isFinalized(req.params.orderId);
-    res.json({ exists, finalized });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 // Authentication endpoints for testing
 app.post('/api/auth/register', async (req, res) => {
   try {

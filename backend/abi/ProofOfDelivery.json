@@ -10,6 +10,21 @@
                 "internalType": "address",
                 "name": "deliveryContract",
                 "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "escrowContract",
+                "type": "address"
+            },
+            {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+            },
+            {
+                "internalType": "string",
+                "name": "version",
+                "type": "string"
             }
         ],
         "stateMutability": "nonpayable",
@@ -21,10 +36,15 @@
         "type": "error"
     },
     {
+        "inputs": [],
+        "name": "BadSigner",
+        "type": "error"
+    },
+    {
         "inputs": [
             {
                 "internalType": "string",
-                "name": "reason",
+                "name": "",
                 "type": "string"
             }
         ],
@@ -33,23 +53,22 @@
     },
     {
         "inputs": [],
-        "name": "NotAuthorized",
+        "name": "LengthMismatch",
         "type": "error"
     },
     {
-        "inputs": [
-            {
-                "internalType": "string",
-                "name": "field",
-                "type": "string"
-            }
-        ],
-        "name": "OutOfRange",
+        "inputs": [],
+        "name": "NotAuthorized",
         "type": "error"
     },
     {
         "inputs": [],
         "name": "ProofNotInit",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "SignatureExpired",
         "type": "error"
     },
     {
@@ -109,6 +128,12 @@
                 "internalType": "address",
                 "name": "by",
                 "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "signer",
+                "type": "address"
             }
         ],
         "name": "Finalized",
@@ -153,6 +178,32 @@
         "type": "event"
     },
     {
+        "inputs": [],
+        "name": "DOMAIN_SEPARATOR",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "FINALIZE_TYPEHASH",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
         "inputs": [
             {
                 "internalType": "uint256",
@@ -181,6 +232,34 @@
         "type": "function"
     },
     {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "orderId",
+                "type": "uint256"
+            },
+            {
+                "internalType": "int256[]",
+                "name": "latE6s",
+                "type": "int256[]"
+            },
+            {
+                "internalType": "int256[]",
+                "name": "lonE6s",
+                "type": "int256[]"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "ts",
+                "type": "uint256[]"
+            }
+        ],
+        "name": "createProofWithCheckpoints",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
         "inputs": [],
         "name": "delivery",
         "outputs": [
@@ -194,6 +273,57 @@
         "type": "function"
     },
     {
+        "inputs": [],
+        "name": "escrow",
+        "outputs": [
+            {
+                "internalType": "contract IPaymentEscrow",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "orderId",
+                "type": "uint256"
+            },
+            {
+                "internalType": "address",
+                "name": "payee",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "deadline",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint8",
+                "name": "v",
+                "type": "uint8"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "r",
+                "type": "bytes32"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "s",
+                "type": "bytes32"
+            }
+        ],
+        "name": "finalizeWithSig",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
         "inputs": [
             {
                 "internalType": "uint256",
@@ -201,9 +331,15 @@
                 "type": "uint256"
             }
         ],
-        "name": "finalize",
-        "outputs": [],
-        "stateMutability": "nonpayable",
+        "name": "getCheckpointCount",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
         "type": "function"
     },
     {
@@ -234,9 +370,38 @@
                         "type": "uint40"
                     }
                 ],
-                "internalType": "struct ProofOfDelivery.Checkpoint[]",
+                "internalType": "struct ProofOfDeliverySig.Checkpoint[]",
                 "name": "",
                 "type": "tuple[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "orderId",
+                "type": "uint256"
+            }
+        ],
+        "name": "getProofSummary",
+        "outputs": [
+            {
+                "internalType": "bool",
+                "name": "exists",
+                "type": "bool"
+            },
+            {
+                "internalType": "bool",
+                "name": "finalized",
+                "type": "bool"
+            },
+            {
+                "internalType": "uint256",
+                "name": "checkpointCount",
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",
@@ -269,6 +434,25 @@
                 "internalType": "bool",
                 "name": "",
                 "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "name": "nonces",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",
