@@ -28,7 +28,7 @@ const ReservationSystem = () => {
       dropLocationData: null, // Store full location data
       pickupDate: '',
       dropDate: '',
-      checkpoints: [{ location: '', locationData: null, date: '', weight: '', goodsType: '', handlingInstructions: '' }]
+      checkpoints: []
     }
   ]);
 
@@ -109,7 +109,7 @@ const ReservationSystem = () => {
   const fetchDrivers = async () => {
     try {
       setLoadingDrivers(true);
-      const response = await fetchAvailableDrivers(false, true);
+      const response = await fetchAvailableDrivers(true, true);
       setAvailableDrivers(response.drivers || []);
     } catch (error) {
       console.error('Error fetching drivers:', error);
@@ -223,6 +223,7 @@ const ReservationSystem = () => {
       const reservationData = {
         businessUid: userId,
         customerInfo,
+        deliveryStatus:"Pending",
         trucks: trucks.map((truck, index) => ({
           ...truck,
           assignedDriver: selectedDrivers[index] ? {
