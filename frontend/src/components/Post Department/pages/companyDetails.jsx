@@ -125,7 +125,7 @@ function CompanyDetails() {
     }
 
     return (
-        <div className='grid grid-cols-[280px_1fr] min-h-screen'>
+        <div className='grid grid-cols-[20%_80%] min-h-screen'>
             {/* Company Sidebar */}
             <CompanySidebar 
                 companies={companies}
