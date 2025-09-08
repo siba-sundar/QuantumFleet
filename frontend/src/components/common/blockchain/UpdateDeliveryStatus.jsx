@@ -2,13 +2,13 @@ import React, { useState } from "react";
 import { toast } from "react-toastify";
 import { LoadingButton } from "./LoadingButton";
 import { ethers } from "ethers";
-import axios from "axios";
-
+// import axios from "axios";
+import deliveryAbi from "../../../abi/DeliveryManagement.json";
 // Enum mapping to match smart contract integers
 const STATUS_ENUM = {
   // Created: 0,
   InTransit: 1,
-  Delivered: 2,
+  // Delivered: 2,
   Cancelled: 3,
 };
 
@@ -26,69 +26,113 @@ export default function UpdateDeliveryStatus() {
     });
   };
 
+  // const handleSubmit = async (e) => {
+  //   e.preventDefault();
+  //   setIsLoading(true);
+
+  //   try {
+  //     const statusInt = STATUS_ENUM[formData.status];
+  //     if (statusInt === undefined) {
+  //       toast.error("Invalid status selected");
+  //       return;
+  //     }
+
+  //     // 1️⃣ Connect to wallet
+  //     if (!window.ethereum) throw new Error("MetaMask not found");
+  //     const provider = new ethers.BrowserProvider(window.ethereum); // ✅ v6 change
+  //     const signer = await provider.getSigner();
+  //     const signerAddress = await signer.getAddress();
+
+  //     // 2️⃣ Define EIP-712 domain + types
+  //     const domain = {
+  //       name: "DeliveryManagement",
+  //       version: "1",
+  //       chainId: 11155111, // Sepolia testnet
+  //       verifyingContract: import.meta.env.VITE_DELIVERY_ADDRESS, // ⚡ replace with deployed Delivery contract address
+  //     };
+
+  //     const types = {
+  //       StatusUpdate: [
+  //         { name: "orderId", type: "uint256" },
+  //         { name: "status", type: "uint8" },
+  //         { name: "nonce", type: "uint256" },
+  //         { name: "deadline", type: "uint256" },
+  //       ],
+  //     };
+
+  //     // 3️⃣ Prepare message values
+  //     const orderId = parseInt(formData.orderId);
+  //     const deadline = Math.floor(Date.now() / 1000) + 3600; // valid for 1 hour
+  //     const nonce = 0; // ⚡ replace with actual nonce if contract tracks it
+
+  //     const value = { orderId, status: statusInt, nonce, deadline };
+
+  //     // 4️⃣ Request signature (ethers v6)
+  //     const signature = await signer.signTypedData(domain, types, value);
+  //     const sig = ethers.Signature.from(signature); // parse sig parts
+
+  //     // 5️⃣ Call backend relayer
+  //     const res = await axios.post(`http://localhost:4001/delivery/status`, {
+  //       orderId,
+  //       status: statusInt,
+  //       deadline,
+  //       sig,
+  //       signer: signerAddress,
+  //     });
+
+  //     if (res.data.success) {
+  //       toast.success(`Delivery status updated to ${formData.status} ✅`);
+  //       setFormData({ orderId: "", status: "" });
+  //     } else {
+  //       toast.error(res.data.error || "Failed to update status");
+  //     }
+  //   } catch (error) {
+  //     console.error("Error in gasless status update:", error);
+  //     toast.error(error.message || "Transaction failed");
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
+      // Validate input
       const statusInt = STATUS_ENUM[formData.status];
       if (statusInt === undefined) {
         toast.error("Invalid status selected");
         return;
       }
+      if (!formData.orderId) throw new Error("Order ID required");
 
-      // 1️⃣ Connect to wallet
+      // 1️⃣ Connect to MetaMask
       if (!window.ethereum) throw new Error("MetaMask not found");
-      const provider = new ethers.BrowserProvider(window.ethereum); // ✅ v6 change
+      const provider = new ethers.BrowserProvider(window.ethereum); // v6
       const signer = await provider.getSigner();
-      const signerAddress = await signer.getAddress();
 
-      // 2️⃣ Define EIP-712 domain + types
-      const domain = {
-        name: "DeliveryManagement",
-        version: "1",
-        chainId: 11155111, // Sepolia testnet
-        verifyingContract: import.meta.env.VITE_DELIVERY_ADDRESS, // ⚡ replace with deployed Delivery contract address
-      };
+      // 2️⃣ Load Delivery contract
+      const deliveryContract = new ethers.Contract(
+        import.meta.env.VITE_DELIVERY_ADDRESS,
+        deliveryAbi, // <-- make sure you imported ABI at top
+        signer
+      );
 
-      const types = {
-        StatusUpdate: [
-          { name: "orderId", type: "uint256" },
-          { name: "status", type: "uint8" },
-          { name: "nonce", type: "uint256" },
-          { name: "deadline", type: "uint256" },
-        ],
-      };
+      // 3️⃣ Call update function (example: updateStatus)
+      const tx = await deliveryContract.setStatus(
+        parseInt(formData.orderId),
+        statusInt
+      );
 
-      // 3️⃣ Prepare message values
-      const orderId = parseInt(formData.orderId);
-      const deadline = Math.floor(Date.now() / 1000) + 3600; // valid for 1 hour
-      const nonce = 0; // ⚡ replace with actual nonce if contract tracks it
+      // 4️⃣ Wait for tx confirmation
+      await tx.wait();
 
-      const value = { orderId, status: statusInt, nonce, deadline };
-
-      // 4️⃣ Request signature (ethers v6)
-      const signature = await signer.signTypedData(domain, types, value);
-      const sig = ethers.Signature.from(signature); // parse sig parts
-
-      // 5️⃣ Call backend relayer
-      const res = await axios.post(`http://localhost:4001/delivery/status`, {
-        orderId,
-        status: statusInt,
-        deadline,
-        sig,
-        signer: signerAddress,
-      });
-
-      if (res.data.success) {
-        toast.success(`Delivery status updated to ${formData.status} ✅`);
-        setFormData({ orderId: "", status: "" });
-      } else {
-        toast.error(res.data.error || "Failed to update status");
-      }
+      toast.success(`✅ Status updated to ${formData.status}`);
+      setFormData({ orderId: "", status: "" });
     } catch (error) {
-      console.error("Error in gasless status update:", error);
-      toast.error(error.message || "Transaction failed");
+      console.error("❌ Error updating status:", error);
+      toast.error(error.reason || error.message || "Transaction failed");
     } finally {
       setIsLoading(false);
     }

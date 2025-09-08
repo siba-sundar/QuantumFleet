@@ -13,7 +13,7 @@ const POD_ADDRESS = import.meta.env.VITE_POD_ADDRESS;
 const ESCROW_ADDRESS = import.meta.env.VITE_ESCROW_ADDRESS;
 const ACCESS_ADDRESS = import.meta.env.VITE_ACCESS_ADDRESS;
 
-async function loadContracts() {
+export async function loadContracts() {
   const deliveryContract = await sdk.getContract(DELIVERY_ADDRESS);
   const podContract = await sdk.getContract(POD_ADDRESS);
   const escrowContract = await sdk.getContract(ESCROW_ADDRESS);

@@ -186,6 +186,7 @@ const DriverDetailsUpdated = () => {
               <p><strong>Date of Birth:</strong> {driverData?.personalInfo?.dateOfBirth || 'Not provided'}</p>
               <p><strong>License Number:</strong> {driverData?.licenseInfo?.licenseNumber || 'Not provided'}</p>
               <p><strong>State of Issue:</strong> {driverData?.licenseInfo?.stateOfIssue || 'Not provided'}</p>
+              <p><strong>Registered Wallet Address :</strong> {driverData?.walletAddress || 'Not provided'}</p>
             </div>
             <div>
               <p><strong>License Expires:</strong> {driverData?.licenseInfo?.licenseExpiration || 'Not provided'}</p>

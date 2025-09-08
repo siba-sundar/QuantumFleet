@@ -1,40 +1,45 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../../hooks/useAuth.jsx';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../../hooks/useAuth.jsx";
+import Wallet_Connect from "../../common/Wallet_Connect.jsx";
 
 const SignUpTD = () => {
   const navigate = useNavigate();
   const { sendOTP, registerWithEmail, loading, error, clearError } = useAuth();
-  
+
   // Form state
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+
   // UI state
-  const [authMethod, setAuthMethod] = useState('phone'); // 'phone' or 'email'
+  const [authMethod, setAuthMethod] = useState("phone"); // 'phone' or 'email'
   const [isLoading, setIsLoading] = useState(false);
-  const [formError, setFormError] = useState('');
-  
+  const [formError, setFormError] = useState("");
+
+  // Wallet state
+  const [walletAddress, setWalletAddress] = useState("");
+
   // Clear errors when inputs change
   useEffect(() => {
     if (error || formError) {
       clearError();
-      setFormError('');
+      setFormError("");
     }
   }, [phone, email, password, confirmPassword, firstName, lastName]);
 
   const validatePhoneNumber = (phoneNumber) => {
-    // Remove all non-digit characters
-    const cleaned = phoneNumber.replace(/\D/g, '');
-    
-    // Check if it's a valid Indian mobile number
+    const cleaned = phoneNumber.replace(/\D/g, "");
     if (cleaned.length === 10 && /^[6-9]/.test(cleaned)) {
       return true;
-    } else if (cleaned.length === 12 && cleaned.startsWith('91') && /^91[6-9]/.test(cleaned)) {
+    } else if (
+      cleaned.length === 12 &&
+      cleaned.startsWith("91") &&
+      /^91[6-9]/.test(cleaned)
+    ) {
       return true;
     }
     return false;
@@ -47,90 +52,100 @@ const SignUpTD = () => {
 
   const handleSignUpTD = async (e) => {
     e.preventDefault();
-    
-    // Basic validation
+
+    if (!walletAddress) {
+      setFormError("⚠️ Please connect your wallet before signing up.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       setFormError("Passwords don't match");
       return;
     }
 
     if (password.length < 6) {
-      setFormError('Password should be at least 6 characters');
+      setFormError("Password should be at least 6 characters");
       return;
     }
 
     if (!firstName.trim()) {
-      setFormError('First name is required');
+      setFormError("First name is required");
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
-      if (authMethod === 'phone') {
-        // Validate phone number
+      if (authMethod === "phone") {
         if (!validatePhoneNumber(phone)) {
-          setFormError('Please enter a valid 10-digit Indian mobile number');
+          setFormError("Please enter a valid 10-digit Indian mobile number");
           setIsLoading(false);
           return;
         }
 
         const result = await sendOTP(phone);
-        
+
         if (result.success) {
-          // Navigate to OTP page with profile data for registration after verification
-          navigate('/otppagetd', { 
-            state: { 
+          navigate("/otppagetd", {
+            state: {
               phone: result.phoneNumber || phone,
               confirmationResult: result.confirmationResult,
-              next: '/auth/driver/details',
+              next: "/auth/driver/details",
               isRegistration: true,
               profileData: {
                 firstName: firstName.trim(),
                 lastName: lastName.trim(),
-                password // Note: For phone auth, password might be stored for profile
-              }
-            } 
+                password,
+                walletAddress, // ✅ include wallet address
+              },
+            },
           });
         } else {
-          setFormError(result.message || 'Failed to send OTP. Try email method below.');
+          setFormError(
+            result.message || "Failed to send OTP. Try email method below."
+          );
         }
       } else {
-        // Email registration
         if (!validateEmail(email)) {
-          setFormError('Please enter a valid email address');
+          setFormError("Please enter a valid email address");
           setIsLoading(false);
           return;
         }
 
         const profileData = {
           firstName: firstName.trim(),
-          lastName: lastName.trim()
+          lastName: lastName.trim(),
+          walletAddress, // ✅ include wallet address
         };
 
-        const result = await registerWithEmail(email, password, 'driver', profileData);
-        
+        const result = await registerWithEmail(
+          email,
+          password,
+          "driver",
+          profileData
+        );
+
         if (result.success) {
-          // Small delay to ensure Firebase auth state is updated
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Navigate to sign-up details page to start the 3-step wizard
-          navigate('/auth/driver/details', {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+
+          navigate("/auth/driver/details", {
             state: {
-              registrationMethod: 'email',
+              registrationMethod: "email",
               userId: result.user.uid,
               isNewUser: true,
-              step: 'personal'
-            }
+              step: "personal",
+              walletAddress, // ✅ pass it forward
+            },
           });
         } else {
-          setFormError(result.message || 'Email registration failed');
+          setFormError(result.message || "Email registration failed");
         }
       }
     } catch (error) {
-      setFormError(authMethod === 'phone' ? 
-        'SMS billing not enabled. Please use email method or enable Firebase billing.' : 
-        'An error occurred during registration'
+      setFormError(
+        authMethod === "phone"
+          ? "SMS billing not enabled. Please use email method or enable Firebase billing."
+          : "An error occurred during registration"
       );
     } finally {
       setIsLoading(false);
@@ -140,55 +155,60 @@ const SignUpTD = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h2 className="text-2xl font-bold text-center mb-6">Create Driver Account</h2>
-        
+        <h2 className="text-2xl font-bold text-center mb-6">
+          Create Driver Account
+        </h2>
+
         {/* Authentication method toggle */}
         <div className="mb-6">
           <div className="flex justify-center space-x-4 mb-4">
             <button
               type="button"
-              onClick={() => setAuthMethod('phone')}
+              onClick={() => setAuthMethod("phone")}
               className={`px-4 py-2 rounded-lg font-medium ${
-                authMethod === 'phone'
-                  ? 'bg-black text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                authMethod === "phone"
+                  ? "bg-black text-white"
+                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
               }`}
             >
               Phone Registration
             </button>
             <button
               type="button"
-              onClick={() => setAuthMethod('email')}
+              onClick={() => setAuthMethod("email")}
               className={`px-4 py-2 rounded-lg font-medium ${
-                authMethod === 'email'
-                  ? 'bg-black text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                authMethod === "email"
+                  ? "bg-black text-white"
+                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
               }`}
             >
               Email Registration
             </button>
           </div>
-          {authMethod === 'phone' && (
+          {authMethod === "phone" && (
             <p className="text-center text-sm text-orange-600 bg-orange-50 p-2 rounded">
-              ⚠️ SMS requires Firebase billing. Use email method if you encounter billing errors.
+              ⚠️ SMS requires Firebase billing. Use email method if you
+              encounter billing errors.
             </p>
           )}
         </div>
-        
-        {/* reCAPTCHA container - hidden but required for Firebase phone auth */}
-        <div id="recaptcha-container" style={{ display: 'none' }}></div>
-        
+
+        {/* reCAPTCHA container */}
+        <div id="recaptcha-container" style={{ display: "none" }}></div>
+
         {/* Error display */}
         {(error || formError) && (
           <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
             {error || formError}
           </div>
         )}
-        
+
         <form onSubmit={handleSignUpTD}>
-          {/* Name fields - always shown */}
+          {/* First name */}
           <div className="mb-4">
-            <label className="block text-black mb-2 font-semibold">First Name</label>
+            <label className="block text-black mb-2 font-semibold">
+              First Name
+            </label>
             <input
               type="text"
               className="w-full px-4 py-2 border rounded-lg"
@@ -198,8 +218,12 @@ const SignUpTD = () => {
               required
             />
           </div>
+
+          {/* Last name */}
           <div className="mb-4">
-            <label className="block text-black mb-2 font-semibold">Last Name</label>
+            <label className="block text-black mb-2 font-semibold">
+              Last Name
+            </label>
             <input
               type="text"
               className="w-full px-4 py-2 border rounded-lg"
@@ -208,11 +232,13 @@ const SignUpTD = () => {
               onChange={(e) => setLastName(e.target.value)}
             />
           </div>
-          
-          {/* Conditional fields based on auth method */}
-          {authMethod === 'phone' ? (
+
+          {/* Phone or email */}
+          {authMethod === "phone" ? (
             <div className="mb-4">
-              <label className="block text-black mb-2 font-semibold">Phone Number</label>
+              <label className="block text-black mb-2 font-semibold">
+                Phone Number
+              </label>
               <input
                 type="text"
                 className="w-full px-4 py-2 border rounded-lg"
@@ -224,7 +250,9 @@ const SignUpTD = () => {
             </div>
           ) : (
             <div className="mb-4">
-              <label className="block text-black mb-2 font-semibold">Email Address</label>
+              <label className="block text-black mb-2 font-semibold">
+                Email Address
+              </label>
               <input
                 type="email"
                 className="w-full px-4 py-2 border rounded-lg"
@@ -235,9 +263,12 @@ const SignUpTD = () => {
               />
             </div>
           )}
-          
+
+          {/* Password */}
           <div className="mb-4">
-            <label className="block text-black mb-2 font-semibold">Password</label>
+            <label className="block text-black mb-2 font-semibold">
+              Password
+            </label>
             <input
               type="password"
               className="w-full px-4 py-2 border rounded-lg"
@@ -248,8 +279,12 @@ const SignUpTD = () => {
               minLength="6"
             />
           </div>
+
+          {/* Confirm Password */}
           <div className="mb-6">
-            <label className="block text-black mb-2 font-semibold">Confirm Password</label>
+            <label className="block text-black mb-2 font-semibold">
+              Confirm Password
+            </label>
             <input
               type="password"
               className="w-full px-4 py-2 border rounded-lg"
@@ -259,29 +294,51 @@ const SignUpTD = () => {
               required
             />
           </div>
-          
+
+          {/* Wallet Connect */}
+          <div className="mb-6 text-center">
+            {!walletAddress && (
+              <Wallet_Connect onWalletConnected={setWalletAddress} />
+            )}
+
+            {walletAddress && (
+              <input
+                type="text"
+                readOnly
+                value={`✅ Connected: ${walletAddress.slice(
+                  0,
+                  6
+                )}...${walletAddress.slice(-4)}`}
+                className="w-full px-3 py-2 border rounded-lg text-green-600 text-sm mt-2 bg-green-50"
+              />
+            )}
+          </div>
+
+          {/* Submit */}
           <div className="flex text-center justify-center mb-2">
             <button
               type="submit"
               disabled={isLoading || loading}
               className={`w-44 px-4 py-2 text-lg font-semibold rounded-full hover:shadow-lg ${
                 isLoading || loading
-                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                  : 'bg-black text-white'
+                  ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                  : "bg-black text-white"
               }`}
             >
-              {isLoading || loading ? 'Creating...' : 
-               authMethod === 'phone' ? 'Send OTP' : 'Create Account'
-              }
+              {isLoading || loading
+                ? "Creating..."
+                : authMethod === "phone"
+                ? "Send OTP"
+                : "Create Account"}
             </button>
           </div>
-          
+
           <div className="text-center mt-4">
             <p className="text-sm text-gray-600">
-              Already have an account?{' '}
+              Already have an account?{" "}
               <button
                 type="button"
-                onClick={() => navigate('/auth/driver/signin')}
+                onClick={() => navigate("/auth/driver/signin")}
                 className="text-black font-semibold hover:underline"
               >
                 Sign In

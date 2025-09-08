@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PlusCircle, Trash2, Truck, MapPin, Package, CreditCard, AlertCircle, CheckCircle, Loader, User } from 'lucide-react';
-import { createReservation, fetchAvailableDrivers, updateDriverAssignment } from '../../../utils/api.js';
+import { PlusCircle, Trash2, Truck, MapPin, Package, CreditCard, AlertCircle, CheckCircle, Loader, User, X } from 'lucide-react';
+import { fetchAvailableDrivers } from '../../../utils/api.js';
 import { useAuth } from '../../../hooks/useAuth.jsx';
 import LocationSearchComponent from '../../common/LocationSearchComponent.jsx';
-
+import CreateDelivery from '../../common/blockchain/CreateDelivery.jsx';
 const ReservationSystem = () => {
   const navigate = useNavigate();
   const { user: currentUser, loading: authLoading } = useAuth();
@@ -14,6 +14,7 @@ const ReservationSystem = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [reservationId, setReservationId] = useState(null);
+  const [showCreateDeliveryModal, setShowCreateDeliveryModal] = useState(false);
   
   // Available drivers state
   const [availableDrivers, setAvailableDrivers] = useState([]);
@@ -109,7 +110,7 @@ const ReservationSystem = () => {
   const fetchDrivers = async () => {
     try {
       setLoadingDrivers(true);
-      const response = await fetchAvailableDrivers(true, true);
+      const response = await fetchAvailableDrivers(false, true);
       setAvailableDrivers(response.drivers || []);
     } catch (error) {
       console.error('Error fetching drivers:', error);
@@ -193,7 +194,7 @@ const ReservationSystem = () => {
     return true;
   };
 
-  const handleReservationSubmit = async () => {
+  const handleReservationSubmit = () => {
     if (!validateForm()) return;
     
     // Check if auth is still loading
@@ -206,80 +207,25 @@ const ReservationSystem = () => {
       setError('You must be logged in to make a reservation');
       return;
     }
-    
+
+    setShowCreateDeliveryModal(true);
+  };
+
+const handleCreateDeliverySuccess = async (orderId) => {
+  try {
     setLoading(true);
     setError('');
-    
-    try {
-      // Get the user ID (try multiple properties for compatibility)
-      const userId = currentUser.uid || currentUser.id;
-      
-      if (!userId) {
-        console.error('User object missing ID:', currentUser);
-        setError('Authentication error: User ID not found. Please try logging out and back in.');
-        return;
-      }
-      
-      const reservationData = {
-        businessUid: userId,
-        customerInfo,
-        deliveryStatus:"Pending",
-        trucks: trucks.map((truck, index) => ({
-          ...truck,
-          assignedDriver: selectedDrivers[index] ? {
-            id: selectedDrivers[index].id,
-            name: selectedDrivers[index].name,
-            phone: selectedDrivers[index].phone,
-            licenseNumber: selectedDrivers[index].licenseNumber
-          } : null
-        }))
-      };
-      
-      const response = await createReservation(reservationData);
-      
-      if (response.success) {
-        setSuccess('Reservation created successfully!');
-        setReservationId(response.reservation.id);
-        
-        // Update driver assignments
-        try {
-          const assignmentPromises = Object.entries(selectedDrivers).map(([truckIndex, driver]) => 
-            updateDriverAssignment(driver.id, {
-              truckId: `reservation-${response.reservation.id}-truck-${truckIndex}`,
-              reservationId: response.reservation.id,
-              status: 'assigned'
-            })
-          );
-          
-          await Promise.all(assignmentPromises);
-        } catch (assignmentError) {
-          console.warn('Failed to update driver assignments:', assignmentError);
-          // Don't fail the reservation for assignment errors
-        }
-        
-        // Redirect to track truck page after successful reservation
-        setTimeout(() => {
-          navigate('/business/track-truck');
-        }, 2000); // Redirect after 2 seconds to show success message
-      } else {
-        setError('Failed to create reservation');
-      }
-    } catch (error) {
-      console.error('Reservation error:', error);
-      
-      let errorMessage = 'Failed to create reservation';
-      
-      if (error.message.includes('Failed to fetch') || error.message.includes('CONNECTION_REFUSED')) {
-  errorMessage = 'Cannot connect to server. Please check if the backend is running on port 4000.';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setShowCreateDeliveryModal(false);
+
+    setSuccess('Blockchain delivery created successfully!');
+    setReservationId(orderId);
+  } catch (error) {
+    console.error('Delivery error:', error);
+    setError(error.message || 'Failed to create delivery');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const calculateTotalCost = () => {
     const baseCost = 1000;
@@ -496,6 +442,7 @@ const ReservationSystem = () => {
                     </div>
                     
                     {selectedDrivers[truckIndex] ? (
+                      
                       <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center space-x-4">
@@ -506,6 +453,7 @@ const ReservationSystem = () => {
                               <h4 className="font-semibold text-green-800">{selectedDrivers[truckIndex].name}</h4>
                               <p className="text-sm text-green-600">License: {selectedDrivers[truckIndex].licenseNumber}</p>
                               <p className="text-sm text-green-600">Phone: {selectedDrivers[truckIndex].phone}</p>
+                              <p className="text-sm text-green-600">Wallet: {selectedDrivers[truckIndex]?.walletAddress}</p>
                               {selectedDrivers[truckIndex].sentiment && (
                                 <p className="text-sm text-green-600">
                                   Sentiment: {selectedDrivers[truckIndex].sentiment.label} ({selectedDrivers[truckIndex].sentiment.score}/100)
@@ -884,6 +832,47 @@ const ReservationSystem = () => {
           )}
         </div>
       </div>
+
+      {/* Create Delivery Modal */}
+      {showCreateDeliveryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between mb-4">
+              <h2 className="text-xl font-semibold">Create Delivery</h2>
+              <button
+                onClick={() => setShowCreateDeliveryModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <CreateDelivery
+              truckId={selectedDrivers[0]?.truckId || selectedDrivers[0]?.licenseNumber}
+              origin={trucks[0]?.pickupLocation}
+              destination={trucks[0]?.dropLocation}
+              payee={selectedDrivers[0]?.walletAddress}
+              eta={Math.floor(new Date(trucks[0]?.dropDate + 'T24:00:00').getTime() / 1000)}
+              onSuccess={handleCreateDeliverySuccess}
+              reservationData={{
+                businessUid: currentUser?.uid,
+                customerInfo,
+                deliveryStatus: "Pending",
+                trucks: trucks.map((truck, index) => ({
+                  ...truck,
+                  assignedDriver: selectedDrivers[index] ? {
+                    id: selectedDrivers[index].id,
+                    name: selectedDrivers[index].name,
+                    phone: selectedDrivers[index].phone,
+                    licenseNumber: selectedDrivers[index].licenseNumber,
+                    walletAddress: selectedDrivers[index].walletAddress,
+                    truckId: selectedDrivers[index].truckId
+                  } : null
+                }))
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

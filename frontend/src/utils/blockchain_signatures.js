@@ -1,6 +1,6 @@
-// frontend\src\utils\blockchain_signatures.js
+// frontend/src/utils/blockchain_signatures.js
 import { ethers } from "ethers";
-import { sdk } from "../config/blockchain";
+import { loadContracts } from "../config/blockchain"; // ✅ use loader, not sdk
 
 // Domain info for EIP-712
 const DOMAIN = {
@@ -10,7 +10,7 @@ const DOMAIN = {
   verifyingContract: import.meta.env.VITE_POD_ADDRESS,
 };
 
-// Type definition for EIP-712 Finalize
+// Type definition for EIP-712 Finalize struct
 const FINALIZE_TYPE = [
   { name: "orderId", type: "uint256" },
   { name: "payee", type: "address" },
@@ -23,29 +23,30 @@ const FINALIZE_TYPE = [
  * - Fetches nonce from contract
  * - Generates deadline
  * - Signs typed data in one step
+ *
  * @param {ethers.Signer} signer - The wallet signer (Metamask / injected)
  * @param {number} orderId - Order ID to finalize
  * @param {string} payee - Recipient of payment
  * @param {number} secondsFromNow - Optional deadline offset in seconds (default 1h)
- * @returns {Promise<{v:number,r:string,s:string, deadline:number, nonce:number}>} - Signature + metadata
+ * @returns {Promise<{v:number,r:string,s:string,deadline:number,nonce:number}>}
  */
 export async function signFinalizePoD(signer, orderId, payee, secondsFromNow = 3600) {
-  // Get the PoD contract instance from sdk
-  const podContract = await sdk.getContract(import.meta.env.VITE_POD_ADDRESS);
+  // ✅ Load PoD contract
+  const { podContract } = await loadContracts();
 
-  // Fetch nonce
+  // Fetch nonce from contract
   const nonce = await podContract.call("nonces", [orderId]);
 
-  // Compute deadline
+  // Compute deadline (current time + secondsFromNow)
   const deadline = Math.floor(Date.now() / 1000) + secondsFromNow;
 
-  // Prepare typed data
+  // Prepare struct to sign
   const value = { orderId, payee, nonce, deadline };
 
-  // Sign typed data using injected wallet
+  // Use ethers.js _signTypedData (EIP-712)
   const signature = await signer._signTypedData(DOMAIN, { Finalize: FINALIZE_TYPE }, value);
 
-  // Split signature
+  // Split into v, r, s
   const sig = ethers.utils.splitSignature(signature);
 
   return { v: sig.v, r: sig.r, s: sig.s, deadline, nonce };
