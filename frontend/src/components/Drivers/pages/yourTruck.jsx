@@ -41,6 +41,7 @@ function TruckDetails() {
   const [statusUpdates, setStatusUpdates] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState("");
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+  const [blockchainOrderId, setBlockchainOrderId] = useState("");
   const [finalizeForm, setFinalizeForm] = useState({
     orderId: "",
     walletAddress: "",
@@ -275,6 +276,7 @@ function TruckDetails() {
             if (reservationResponse.ok) {
               const resData = await reservationResponse.json();
               reservationData = resData.reservation;
+              setBlockchainOrderId(reservationData.blockchainOrderId || -1);
             }
           } catch (error) {
             console.warn("Error loading driver reservation data:", error);
@@ -720,30 +722,6 @@ function TruckDetails() {
       };
     });
   }, [routeInfo]);
-
-  const handleFinalizeDelivery = async (orderId, payee = 0, signer) => {
-    try {
-      const result = await apiFinalizeDelivery(signer, orderId, payee);
-
-      toast.success("Delivery finalized successfully");
-
-      setTrucks((prevTrucks) =>
-        prevTrucks.map((truck) =>
-          truck.orderId === orderId
-            ? {
-                ...truck,
-                status: "Delivered",
-                isFinalized: true,
-                finalizedAt: new Date().toISOString(),
-              }
-            : truck
-        )
-      );
-    } catch (error) {
-      console.error("Error finalizing delivery:", error);
-      toast.error(error.response?.data?.error || "Failed to finalize delivery");
-    }
-  };
 
   // Generate Google Maps Embed URL with directions and waypoints
   const googleMapsEmbedData = useMemo(() => {
@@ -1834,21 +1812,23 @@ function TruckDetails() {
               )}
             </div>
 
-            {/* Blockchain Delivery Management Card */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center mb-4">
-                <Airplay className="w-6 h-6 text-indigo-600 mr-3" />
-                <h2 className="text-lg font-bold text-gray-900">
-                  Delivery Management
-                </h2>
-              </div>
+            {(blockchainOrderId > 0) && (
+              <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
+                {/* Header */}
+                <div className="flex items-center mb-6 border-b pb-3">
+                  <Airplay className="w-6 h-6 text-indigo-600 mr-2" />
+                  <h2 className="text-xl font-bold text-gray-900">
+                    Delivery Management
+                  </h2>
+                </div>
 
-              <div className="space-y-4 grid md:grid-cols-2 lg:grid-cols-1">
-                <UpdateDeliveryStatus />
-
-                <FinalizeDelivery />
+                {/* Grid layout */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <UpdateDeliveryStatus blockchainOrderId={blockchainOrderId} />
+                  <FinalizeDelivery blockchainOrderId={blockchainOrderId} />
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

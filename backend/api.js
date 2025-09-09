@@ -2027,7 +2027,7 @@ app.post("/api/seed-trucks", (req, res) => {
 
 // GPS Tracking Routes
 app.use("/api/tracking", gpsRoutes);
-app.use("/api/reservations", reservationsRoutes);
+app.use("/api/quantum/reservations", reservationsRoutes);
 
 // Location API Endpoints
 

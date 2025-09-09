@@ -1,24 +1,56 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { LoadingButton } from "./LoadingButton";
 import { ethers } from "ethers";
-// import axios from "axios";
 import deliveryAbi from "../../../abi/DeliveryManagement.json";
+
 // Enum mapping to match smart contract integers
 const STATUS_ENUM = {
   Created: 0,
   InTransit: 1,
-  // Delivered: 2,
+  Delivered: 2,
   Cancelled: 3,
 };
 
-export default function UpdateDeliveryStatus() {
-  const [formData, setFormData] = useState({
-    orderId: "",
-    status: "",
-  });
+// Reverse mapping for contract int -> string
+const STATUS_NAMES = Object.keys(STATUS_ENUM).reduce((acc, key) => {
+  acc[STATUS_ENUM[key]] = key;
+  return acc;
+}, {});
+
+export default function UpdateDeliveryStatus({ blockchainOrderId }) {
+  const [formData, setFormData] = useState({ status: "" });
   const [isLoading, setIsLoading] = useState(false);
-   const [successMessage, setSuccessMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [getStatusOfDelivery, setGetStatusOfDelivery] = useState("");
+  const [isDelivered, setIsDelivered] = useState(false);
+
+  // Fetch current delivery status
+  useEffect(() => {
+    const fetchStatus = async () => {
+      if (!blockchainOrderId || !window.ethereum) return;
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const deliveryContract = new ethers.Contract(
+          import.meta.env.VITE_DELIVERY_ADDRESS,
+          deliveryAbi,
+          provider
+        );
+
+        const statusInt = await deliveryContract.getStatus(
+          parseInt(blockchainOrderId)
+        );
+        const statusStr = STATUS_NAMES[statusInt] || "";
+        setGetStatusOfDelivery(statusStr);
+        setFormData({ status: statusStr });
+        setIsDelivered(statusStr === "Delivered"); // ✅ disable if Delivered
+      } catch (err) {
+        console.error("Error fetching delivery status:", err);
+      }
+    };
+
+    fetchStatus();
+  }, [blockchainOrderId]);
 
   const handleChange = (e) => {
     setFormData({
@@ -27,112 +59,39 @@ export default function UpdateDeliveryStatus() {
     });
   };
 
-  // const handleSubmit = async (e) => {
-  //   e.preventDefault();
-  //   setIsLoading(true);
-
-  //   try {
-  //     const statusInt = STATUS_ENUM[formData.status];
-  //     if (statusInt === undefined) {
-  //       toast.error("Invalid status selected");
-  //       return;
-  //     }
-
-  //     // 1️⃣ Connect to wallet
-  //     if (!window.ethereum) throw new Error("MetaMask not found");
-  //     const provider = new ethers.BrowserProvider(window.ethereum); // ✅ v6 change
-  //     const signer = await provider.getSigner();
-  //     const signerAddress = await signer.getAddress();
-
-  //     // 2️⃣ Define EIP-712 domain + types
-  //     const domain = {
-  //       name: "DeliveryManagement",
-  //       version: "1",
-  //       chainId: 11155111, // Sepolia testnet
-  //       verifyingContract: import.meta.env.VITE_DELIVERY_ADDRESS, // ⚡ replace with deployed Delivery contract address
-  //     };
-
-  //     const types = {
-  //       StatusUpdate: [
-  //         { name: "orderId", type: "uint256" },
-  //         { name: "status", type: "uint8" },
-  //         { name: "nonce", type: "uint256" },
-  //         { name: "deadline", type: "uint256" },
-  //       ],
-  //     };
-
-  //     // 3️⃣ Prepare message values
-  //     const orderId = parseInt(formData.orderId);
-  //     const deadline = Math.floor(Date.now() / 1000) + 3600; // valid for 1 hour
-  //     const nonce = 0; // ⚡ replace with actual nonce if contract tracks it
-
-  //     const value = { orderId, status: statusInt, nonce, deadline };
-
-  //     // 4️⃣ Request signature (ethers v6)
-  //     const signature = await signer.signTypedData(domain, types, value);
-  //     const sig = ethers.Signature.from(signature); // parse sig parts
-
-  //     // 5️⃣ Call backend relayer
-  //     const res = await axios.post(`http://localhost:4001/delivery/status`, {
-  //       orderId,
-  //       status: statusInt,
-  //       deadline,
-  //       sig,
-  //       signer: signerAddress,
-  //     });
-
-  //     if (res.data.success) {
-  //       toast.success(`Delivery status updated to ${formData.status} ✅`);
-  //       setFormData({ orderId: "", status: "" });
-  //     } else {
-  //       toast.error(res.data.error || "Failed to update status");
-  //     }
-  //   } catch (error) {
-  //     console.error("Error in gasless status update:", error);
-  //     toast.error(error.message || "Transaction failed");
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
     setSuccessMessage("");
 
     try {
-      // Validate input
       const statusInt = STATUS_ENUM[formData.status];
       if (statusInt === undefined) {
-        setSuccessMessage("");
+        toast.error("Invalid status selected");
         return;
       }
-      if (!formData.orderId) throw new Error("Order ID required");
 
-      // 1️⃣ Connect to MetaMask
+      if (!blockchainOrderId) throw new Error("Order ID not found");
+
       if (!window.ethereum) throw new Error("MetaMask not found");
-      const provider = new ethers.BrowserProvider(window.ethereum); // v6
+      const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 
-      // 2️⃣ Load Delivery contract
       const deliveryContract = new ethers.Contract(
         import.meta.env.VITE_DELIVERY_ADDRESS,
-        deliveryAbi, // <-- make sure you imported ABI at top
+        deliveryAbi,
         signer
       );
 
-      // 3️⃣ Call update function (example: updateStatus)
       const tx = await deliveryContract.setStatus(
-        parseInt(formData.orderId),
+        parseInt(blockchainOrderId),
         statusInt
       );
-
-      // 4️⃣ Wait for tx confirmation
       await tx.wait();
 
-      // Display message in text
       setSuccessMessage(`✅ Status updated to ${formData.status}`);
-      setFormData({ orderId: "", status: "" });
+      setGetStatusOfDelivery(formData.status);
+      setIsDelivered(formData.status === "Delivered");
     } catch (error) {
       console.error("❌ Error updating status:", error);
       toast.error(error.reason || error.message || "Transaction failed");
@@ -142,35 +101,36 @@ export default function UpdateDeliveryStatus() {
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
+    <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl shadow-lg border border-gray-200">
       <h2 className="mb-4 text-2xl font-bold text-gray-800">
         Update Delivery Status
       </h2>
+
+      <p className="mb-4 text-sm text-gray-600">
+        <span className="font-semibold">Order ID:</span>{" "}
+        <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-md">
+          {blockchainOrderId}
+        </span>
+      </p>
+
+      <p className="mb-4 text-sm text-gray-700">
+        <span className="font-semibold">Current Status:</span>{" "}
+        <span className="px-2 py-1 bg-green-100 text-green-700 rounded-md">
+          {getStatusOfDelivery || "Fetching..."}
+        </span>
+      </p>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700">
-            Order ID
-          </label>
-          <input
-            type="text"
-            name="orderId"
-            value={formData.orderId}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border rounded-md"
-            placeholder="Enter order ID"
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Status
+            Update To
           </label>
           <select
             name="status"
             value={formData.status}
             onChange={handleChange}
-            className="w-full px-3 py-2 border rounded-md"
+            disabled={isDelivered} // ✅ disable select if Delivered
+            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             required
           >
             <option value="">Select Status</option>
@@ -185,11 +145,21 @@ export default function UpdateDeliveryStatus() {
         <LoadingButton
           type="submit"
           isLoading={isLoading}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out"
+          disabled={isDelivered} // ✅ disable button if Delivered
+          className={`w-full ${
+            isDelivered
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-indigo-600 hover:bg-indigo-700"
+          } text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-150 ease-in-out`}
         >
-          {isLoading ? "Updating..." : "Update Status"}
+          {isDelivered
+            ? "Already Delivered"
+            : isLoading
+            ? "Updating..."
+            : "Update Status"}
         </LoadingButton>
       </form>
+
       {successMessage && (
         <p className="mt-4 text-green-600 font-medium">{successMessage}</p>
       )}

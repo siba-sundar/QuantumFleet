@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { LoadingButton } from "./LoadingButton";
 import { useActiveAccount } from "thirdweb/react";
 import { ethers } from "ethers";
@@ -10,26 +10,45 @@ const POD_ADDRESS = import.meta.env.VITE_POD_ADDRESS;
 const DELIVERY_ADDRESS = import.meta.env.VITE_DELIVERY_ADDRESS;
 const ACCESS_ADDRESS = import.meta.env.VITE_ACCESS_ADDRESS;
 
-export default function FinalizeDelivery() {
-  const [orderId, setOrderId] = useState("");
+export default function FinalizeDelivery({ blockchainOrderId }) {
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState(""); // <-- new state
-
+  const [message, setMessage] = useState("");
+  const [isFinalized, setIsFinalized] = useState(false);
   const account = useActiveAccount();
   const address = account?.address;
 
+  // ✅ Fetch whether delivery is finalized
+  useEffect(() => {
+    const fetchFinalized = async () => {
+      if (!blockchainOrderId || !window.ethereum) return;
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const podContract = new ethers.Contract(POD_ADDRESS, podAbi, provider);
+
+        const finalized = await podContract.isFinalized(
+          parseInt(blockchainOrderId)
+        );
+        setIsFinalized(finalized);
+      } catch (err) {
+        console.error("Error fetching finalized status:", err);
+      }
+    };
+
+    fetchFinalized();
+  }, [blockchainOrderId]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setMessage(""); // reset previous message
+    setMessage("");
 
     if (!address) {
       setMessage("❌ Please connect your wallet first!");
       return;
     }
 
-    const id = parseInt(orderId);
+    const id = parseInt(blockchainOrderId);
     if (!id || isNaN(id)) {
-      setMessage("❌ Please enter a valid Order ID");
+      setMessage("❌ Invalid Order ID provided");
       return;
     }
 
@@ -74,13 +93,11 @@ export default function FinalizeDelivery() {
       }
 
       // Finalize delivery
-      const tx = await podContract
-        .connect(signer)
-        .finalizeDelivery(id, address);
+      const tx = await podContract.finalizeDelivery(id, address);
       await tx.wait();
 
       setMessage("✅ Delivery finalized & payment released!");
-      setOrderId("");
+      setIsFinalized(true); // ✅ update state
     } catch (error) {
       console.error("Finalize Error:", error);
 
@@ -97,13 +114,14 @@ export default function FinalizeDelivery() {
   };
 
   return (
-    <div className="p-6 border rounded-lg bg-white shadow-sm w-full h-full">
+    <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl shadow-lg border border-gray-200">
       <h2 className="mb-4 text-2xl font-bold text-gray-800">
         Finalize Delivery
       </h2>
-      <form onSubmit={handleSubmit}>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
         {/* Wallet Address */}
-        <div className="mb-4">
+        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Connected Wallet
           </label>
@@ -111,36 +129,39 @@ export default function FinalizeDelivery() {
             type="text"
             value={address || "Not Connected"}
             readOnly
-            className="w-full border-gray-300 rounded-md shadow-sm p-2 bg-gray-100 text-gray-800"
+            className="w-full border-gray-300 rounded-lg shadow-sm p-2 bg-gray-100 text-gray-800"
           />
         </div>
 
-        {/* Order ID */}
-        <div className="mb-4">
+        {/* Order ID (from props) */}
+        <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Order ID
           </label>
-          <input
-            type="number"
-            value={orderId}
-            onChange={(e) => setOrderId(e.target.value)}
-            placeholder="Enter Order ID"
-            className="w-full border-gray-300 rounded-md shadow-sm p-2"
-            required
-          />
+          <p className="px-3 py-2 bg-indigo-100 text-indigo-700 rounded-lg font-medium">
+            {blockchainOrderId || "N/A"}
+          </p>
         </div>
 
-        {/* Submit */}
+        {/* ✅ Disable finalize button if already finalized */}
         <LoadingButton
-          type="submit"
+          type={!isFinalized ? "submit" : "button"}
           isLoading={loading}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out"
+          disabled={isFinalized}
+          className={`w-full ${
+            isFinalized
+              ? "bg-gray-400 cursor-not-allowed"
+              : "bg-indigo-600 hover:bg-indigo-700"
+          } text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-150 ease-in-out`}
         >
-          {loading ? "Finalizing..." : "Finalize Delivery"}
+          {isFinalized
+            ? "Already Finalized"
+            : loading
+            ? "Finalizing..."
+            : "Finalize Delivery"}
         </LoadingButton>
       </form>
 
-      {/* Display message below form */}
       {message && <p className="mt-4 text-gray-800 font-medium">{message}</p>}
     </div>
   );
