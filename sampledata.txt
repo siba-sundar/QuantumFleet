@@ -1,0 +1,131 @@
+{
+    "num_vehicles": 3,
+    "vehicles": [
+        {"id": "truck_1", "capacity": 1200, "type": "small", "max_shift_hours": 8, "current_location": "depot_1"},
+        {"id": "truck_2", "capacity": 1500, "type": "medium", "max_shift_hours": 10, "current_location": "depot_2"},
+        {"id": "truck_3", "capacity": 1000, "type": "small", "max_shift_hours": 7, "current_location": "depot_1"}
+    ],
+    "depots": [
+        {"id": "depot_1", "lat": 12.9716, "lon": 77.5946},
+        {"id": "depot_2", "lat": 12.9350, "lon": 77.6100}
+    ],
+    "locations": [
+        {"id": "loc_1", "lat": 12.9352, "lon": 77.6245, "demand": 300, "priority": 1, "time_window": [8, 12]},
+        {"id": "loc_2", "lat": 12.9878, "lon": 77.5966, "demand": 200, "priority": 2, "time_window": [10, 15]},
+        {"id": "loc_3", "lat": 12.9200, "lon": 77.6100, "demand": 400, "priority": 1, "time_window": [9, 14]},
+        {"id": "loc_4", "lat": 12.9600, "lon": 77.6000, "demand": 500, "priority": 2, "time_window": [8, 11]},
+        {"id": "loc_5", "lat": 12.9700, "lon": 77.6200, "demand": 300, "priority": 1, "time_window": [9, 13]},
+        {"id": "loc_6", "lat": 12.9550, "lon": 77.6100, "demand": 350, "priority": 1, "time_window": [8, 12]},
+        {"id": "loc_7", "lat": 12.9400, "lon": 77.5900, "demand": 250, "priority": 2, "time_window": [10, 14]},
+        {"id": "loc_8", "lat": 12.9300, "lon": 77.6050, "demand": 300, "priority": 1, "time_window": [9, 13]},
+        {"id": "loc_9", "lat": 12.9450, "lon": 77.6150, "demand": 400, "priority": 1, "time_window": [8, 12]},
+        {"id": "loc_10", "lat": 12.9550, "lon": 77.6250, "demand": 500, "priority": 2, "time_window": [10, 15]}
+    ],
+    "constraints": {
+        "max_stops_per_vehicle": 5,
+        "max_distance_per_vehicle": 25.0,
+        "max_time_per_vehicle": 10.0,
+        "priority_handling": "True",
+        "allowed_vehicle_types": ["small", "medium", "large"]
+    }
+}
+
+
+
+
+
+
+{
+    "num_vehicles": 4,
+    "vehicles": [
+        {"id": "truck_1", "capacity": 1000, "type": "small", "max_shift_hours": 8, "current_location": "depot_1"},
+        {"id": "truck_2", "capacity": 1500, "type": "medium", "max_shift_hours": 10, "current_location": "depot_2"},
+        {"id": "truck_3", "capacity": 1200, "type": "medium", "max_shift_hours": 9, "current_location": "depot_1"},
+        {"id": "truck_4", "capacity": 1800, "type": "large", "max_shift_hours": 12, "current_location": "depot_2"}
+    ],
+    "depots": [
+        {"id": "depot_1", "lat": 12.9716, "lon": 77.5946},
+        {"id": "depot_2", "lat": 12.9350, "lon": 77.6100}
+    ],
+    "locations": [
+        {"id": "loc_1", "lat": 12.9352, "lon": 77.6245, "demand": 300, "priority": 1, "time_window": [8, 12]},
+        {"id": "loc_2", "lat": 12.9878, "lon": 77.5966, "demand": 200, "priority": 2, "time_window": [10, 15]},
+        {"id": "loc_3", "lat": 12.9200, "lon": 77.6100, "demand": 400, "priority": 1, "time_window": [9, 14]},
+        {"id": "loc_4", "lat": 12.9600, "lon": 77.6000, "demand": 500, "priority": 2, "time_window": [8, 11]},
+        {"id": "loc_5", "lat": 12.9700, "lon": 77.6200, "demand": 300, "priority": 1, "time_window": [9, 13]},
+        {"id": "loc_6", "lat": 12.9550, "lon": 77.6100, "demand": 350, "priority": 1, "time_window": [8, 12]},
+        {"id": "loc_7", "lat": 12.9400, "lon": 77.5900, "demand": 250, "priority": 2, "time_window": [10, 14]},
+        {"id": "loc_8", "lat": 12.9300, "lon": 77.6050, "demand": 300, "priority": 1, "time_window": [9, 13]},
+        {"id": "loc_9", "lat": 12.9450, "lon": 77.6150, "demand": 400, "priority": 1, "time_window": [8, 12]},
+        {"id": "loc_10", "lat": 12.9550, "lon": 77.6250, "demand": 500, "priority": 2, "time_window": [10, 15]},
+        {"id": "loc_11", "lat": 12.9650, "lon": 77.6350, "demand": 300, "priority": 1, "time_window": [9, 13]},
+        {"id": "loc_12", "lat": 12.9750, "lon": 77.6450, "demand": 200, "priority": 2, "time_window": [8, 14]},
+        {"id": "loc_13", "lat": 12.9850, "lon": 77.6550, "demand": 350, "priority": 1, "time_window": [10, 15]},
+        {"id": "loc_14", "lat": 12.9950, "lon": 77.6650, "demand": 400, "priority": 2, "time_window": [9, 14]},
+        {"id": "loc_15", "lat": 13.0050, "lon": 77.6750, "demand": 250, "priority": 1, "time_window": [8, 12]}
+    ],
+    "constraints": {
+        "max_stops_per_vehicle": 5,
+        "max_distance_per_vehicle": 25.0,
+        "max_time_per_vehicle": 12.0,
+        "priority_handling": "True",
+        "allowed_vehicle_types": ["small", "medium", "large"]
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+{
+    "num_vehicles": 5,
+    "vehicles": [
+        {"id": "truck_1", "capacity": 1000, "type": "small", "max_shift_hours": 8, "current_location": "depot_1"},
+        {"id": "truck_2", "capacity": 1500, "type": "medium", "max_shift_hours": 10, "current_location": "depot_2"},
+        {"id": "truck_3", "capacity": 1200, "type": "medium", "max_shift_hours": 9, "current_location": "depot_1"},
+        {"id": "truck_4", "capacity": 1800, "type": "large", "max_shift_hours": 12, "current_location": "depot_2"},
+        {"id": "truck_5", "capacity": 1600, "type": "large", "max_shift_hours": 11, "current_location": "depot_1"}
+    ],
+    "depots": [
+        {"id": "depot_1", "lat": 12.9716, "lon": 77.5946},
+        {"id": "depot_2", "lat": 12.9350, "lon": 77.6100}
+    ],
+    "locations": [
+        {"id": "loc_1", "lat": 12.9352, "lon": 77.6245, "demand": 300, "priority": 1, "time_window": [8, 12]},
+        {"id": "loc_2", "lat": 12.9878, "lon": 77.5966, "demand": 200, "priority": 2, "time_window": [10, 15]},
+        {"id": "loc_3", "lat": 12.9200, "lon": 77.6100, "demand": 400, "priority": 1, "time_window": [9, 14]},
+        {"id": "loc_4", "lat": 12.9600, "lon": 77.6000, "demand": 500, "priority": 2, "time_window": [8, 11]},
+        {"id": "loc_5", "lat": 12.9700, "lon": 77.6200, "demand": 300, "priority": 1, "time_window": [9, 13]},
+        {"id": "loc_6", "lat": 12.9550, "lon": 77.6100, "demand": 350, "priority": 1, "time_window": [8, 12]},
+        {"id": "loc_7", "lat": 12.9400, "lon": 77.5900, "demand": 250, "priority": 2, "time_window": [10, 14]},
+        {"id": "loc_8", "lat": 12.9300, "lon": 77.6050, "demand": 300, "priority": 1, "time_window": [9, 13]},
+        {"id": "loc_9", "lat": 12.9450, "lon": 77.6150, "demand": 400, "priority": 1, "time_window": [8, 12]},
+        {"id": "loc_10", "lat": 12.9550, "lon": 77.6250, "demand": 500, "priority": 2, "time_window": [10, 15]},
+        {"id": "loc_11", "lat": 12.9650, "lon": 77.6350, "demand": 300, "priority": 1, "time_window": [9, 13]},
+        {"id": "loc_12", "lat": 12.9750, "lon": 77.6450, "demand": 200, "priority": 2, "time_window": [8, 14]},
+        {"id": "loc_13", "lat": 12.9850, "lon": 77.6550, "demand": 350, "priority": 1, "time_window": [10, 15]},
+        {"id": "loc_14", "lat": 12.9950, "lon": 77.6650, "demand": 400, "priority": 2, "time_window": [9, 14]},
+        {"id": "loc_15", "lat": 13.0050, "lon": 77.6750, "demand": 250, "priority": 1, "time_window": [8, 12]},
+        {"id": "loc_16", "lat": 13.0150, "lon": 77.6850, "demand": 300, "priority": 1, "time_window": [10, 14]},
+        {"id": "loc_17", "lat": 13.0250, "lon": 77.6950, "demand": 200, "priority": 2, "time_window": [9, 13]},
+        {"id": "loc_18", "lat": 13.0350, "lon": 77.7050, "demand": 400, "priority": 1, "time_window": [8, 14]},
+        {"id": "loc_19", "lat": 13.0450, "lon": 77.7150, "demand": 300, "priority": 2, "time_window": [10, 15]},
+        {"id": "loc_20", "lat": 13.0550, "lon": 77.7250, "demand": 500, "priority": 1, "time_window": [9, 14]}
+    ],
+    "constraints": {
+        "max_stops_per_vehicle": 6,
+        "max_distance_per_vehicle": 30.0,
+        "max_time_per_vehicle": 12.0,
+        "priority_handling": "True",
+        "allowed_vehicle_types": ["small", "medium", "large"]
+    }
+}
+
+
+
