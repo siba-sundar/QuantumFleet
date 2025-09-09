@@ -1271,28 +1271,30 @@ function TruckDetails() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-100 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Modern Header */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="mb-10">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-                Your Truck Dashboard
+              <h1 className="text-3xl font-extrabold text-indigo-900 mb-2 tracking-tight drop-shadow-lg">
+                🚚 Your Truck Dashboard
               </h1>
-              <div className="flex flex-wrap items-center gap-4 text-sm">
-                <span className="flex items-center text-gray-600">
-                  <Truck className="w-4 h-4 mr-2" />
-                  <span className="font-medium">Truck:</span>{" "}
-                  {selectedTruck.number}
+              <div className="flex flex-wrap items-center gap-4 text-base mt-2">
+                <span className="flex items-center text-indigo-700 font-semibold">
+                  <Truck className="w-5 h-5 mr-2" />
+                  Truck:{" "}
+                  <span className="ml-1 text-indigo-900 font-bold">
+                    {selectedTruck.number}
+                  </span>
                 </span>
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  className={`px-4 py-1 rounded-full text-sm font-bold shadow ${
                     truckDetails.deliveryStatus === "Reserved"
-                      ? "bg-blue-100 text-blue-800"
+                      ? "bg-blue-200 text-blue-900"
                       : truckDetails.deliveryStatus === "Active"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-800"
+                      ? "bg-green-200 text-green-900"
+                      : "bg-gray-200 text-gray-900"
                   }`}
                 >
                   {truckDetails.deliveryStatus}
@@ -1301,16 +1303,16 @@ function TruckDetails() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               {/* Incoming Alerts Button */}
               {incomingAlerts.length > 0 && (
                 <button
                   onClick={() => setShowIncomingAlerts(true)}
-                  className="relative px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center shadow-lg border-2 border-blue-600 hover:border-blue-700 font-bold"
+                  className="relative px-7 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:scale-105 transition-transform flex items-center shadow-xl border-2 border-blue-600 hover:border-indigo-700 font-bold"
                 >
                   <Bell className="w-5 h-5 mr-2" />
                   <span className="hidden sm:inline">Messages</span>
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold border-2 border-white">
                     {incomingAlerts.length}
                   </span>
                 </button>
@@ -1320,12 +1322,12 @@ function TruckDetails() {
               <button
                 onClick={handleSOS}
                 disabled={sosSending}
-                className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-bold shadow-lg disabled:opacity-50 flex items-center border-2 border-red-600 hover:border-red-700"
+                className="px-8 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl hover:scale-105 transition-transform font-extrabold shadow-xl disabled:opacity-50 flex items-center border-2 border-red-600 hover:border-pink-700"
               >
-                <AlertTriangle className="w-5 h-5 mr-2" />
+                <AlertTriangle className="w-6 h-6 mr-3" />
                 {sosSending ? (
                   <>
-                    <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
+                    <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></span>
                     Sending...
                   </>
                 ) : (
@@ -1337,19 +1339,19 @@ function TruckDetails() {
         </div>
 
         {/* Main Content - Three Column Layout */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* Left Column - Map (2/3 width on large screens) */}
           <div className="xl:col-span-2">
-            <div className="bg-white rounded-xl shadow-lg p-6 h-[890px]">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-white rounded-3xl shadow-2xl p-8 h-[900px] border border-indigo-100">
+              <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center">
-                  <MapPin className="w-6 h-6 text-green-600 mr-3" />
-                  <h2 className="text-xl font-bold text-gray-900">
+                  <MapPin className="w-8 h-8 text-indigo-600 mr-4 drop-shadow" />
+                  <h2 className="text-2xl font-extrabold text-indigo-900 tracking-tight">
                     Live Location Tracking
                   </h2>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-sm text-gray-500">
+                <div className="flex items-center gap-4">
+                  <div className="text-base text-indigo-700 font-semibold">
                     {currentLocation
                       ? `${currentLocation.lat?.toFixed(
                           4
@@ -1361,9 +1363,9 @@ function TruckDetails() {
                       onClick={() =>
                         window.open(googleMapsEmbedData.externalUrl, "_blank")
                       }
-                      className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium flex items-center"
+                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:scale-105 transition-transform font-bold flex items-center"
                     >
-                      <Navigation className="w-4 h-4 mr-2" />
+                      <Navigation className="w-5 h-5 mr-2" />
                       Open in Maps
                     </button>
                   )}
@@ -1518,9 +1520,9 @@ function TruckDetails() {
           </div>
 
           {/* Right Column - Sidebar (1/3 width on large screens) */}
-          <div className="space-y-6">
+          <div className="space-y-8">
             {/* Truck Details Card */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
               <div className="flex items-center mb-4">
                 <Truck className="w-6 h-6 text-gray-600 mr-3" />
                 <h2 className="text-lg font-bold text-gray-900">
@@ -1587,7 +1589,7 @@ function TruckDetails() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
               <div className="flex items-center mb-4">
                 <CheckCircle className="w-6 h-6 text-purple-600 mr-3" />
                 <h2 className="text-lg font-bold text-gray-900">
@@ -1812,20 +1814,26 @@ function TruckDetails() {
               )}
             </div>
 
-            {(blockchainOrderId > 0) && (
-              <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
+            {blockchainOrderId > 0 && (
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-100 rounded-3xl shadow-2xl p-8 border border-indigo-200">
                 {/* Header */}
-                <div className="flex items-center mb-6 border-b pb-3">
-                  <Airplay className="w-6 h-6 text-indigo-600 mr-2" />
-                  <h2 className="text-xl font-bold text-gray-900">
+                <div className="flex items-center mb-8 border-b-2 pb-4 border-indigo-200">
+                  <Airplay className="w-8 h-8 text-indigo-600 mr-3 drop-shadow" />
+                  <h2 className="text-2xl font-extrabold text-indigo-900 tracking-tight">
                     Delivery Management
                   </h2>
                 </div>
 
                 {/* Grid layout */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <UpdateDeliveryStatus blockchainOrderId={blockchainOrderId} />
-                  <FinalizeDelivery blockchainOrderId={blockchainOrderId} />
+                <div className=" flex flex-col gap-y-4">
+                  <div>
+                    <UpdateDeliveryStatus
+                      blockchainOrderId={blockchainOrderId}
+                    />
+                  </div>
+                  <div>
+                    <FinalizeDelivery blockchainOrderId={blockchainOrderId} />
+                  </div>
                 </div>
               </div>
             )}
@@ -2338,7 +2346,7 @@ function TruckDetails() {
           </div>
         </div>
       )}
-
+x``
       {showIncomingAlerts && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-96 max-w-md max-h-96 flex flex-col">
