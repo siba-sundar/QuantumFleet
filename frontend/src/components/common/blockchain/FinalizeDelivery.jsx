@@ -3,27 +3,13 @@ import { toast } from "react-toastify";
 import { LoadingButton } from "./LoadingButton";
 import { useActiveAccount } from "thirdweb/react";
 import { ethers } from "ethers";
-import axios from "axios";
-import abi from "../../../abi/ProofOfDelivery.json";
+import podAbi from "../../../abi/ProofOfDelivery.json";
+import deliveryAbi from "../../../abi/DeliveryManagement.json";
+import accessAbi from "../../../abi/AccessRegistry.json";
 
-const BASE_URL = import.meta.env.VITE_API_BASE;
 const POD_ADDRESS = import.meta.env.VITE_POD_ADDRESS;
-
-// EIP-712 Domain
-const DOMAIN = {
-  name: "ProofOfDelivery",
-  version: "1",
-  chainId: 11155111, // Sepolia
-  verifyingContract: POD_ADDRESS,
-};
-
-// EIP-712 Types
-const FINALIZE_TYPE = [
-  { name: "orderId", type: "uint256" },
-  { name: "payee", type: "address" },
-  { name: "nonce", type: "uint256" },
-  { name: "deadline", type: "uint256" },
-];
+const DELIVERY_ADDRESS = import.meta.env.VITE_DELIVERY_ADDRESS;
+const ACCESS_ADDRESS = import.meta.env.VITE_ACCESS_ADDRESS;
 
 export default function FinalizeDelivery() {
   const [orderId, setOrderId] = useState("");
@@ -39,56 +25,65 @@ export default function FinalizeDelivery() {
       toast.error("Please connect your wallet first!");
       return;
     }
-    if (!orderId) {
-      toast.error("Please enter the Order ID");
+
+    const id = parseInt(orderId);
+    if (!id || isNaN(id)) {
+      toast.error("Please enter a valid Order ID");
       return;
     }
 
     try {
       setLoading(true);
 
-      // 1️⃣ Setup provider & signer
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 
-      // 2️⃣ Read nonce from PoD contract
-      const podContract = new ethers.Contract(POD_ADDRESS, abi, provider);
-      const nonce = await podContract.nonces(orderId);
-
-      // 3️⃣ Compute deadline (1h from now)
-      const deadline = Math.floor(Date.now() / 1000) + 3600;
-
-      // 4️⃣ Prepare typed data
-      const value = { orderId, payee: address, nonce: nonce.toString(), deadline };
-
-      // 5️⃣ Sign typed data (EIP-712)
-      const signature = await signer.signTypedData(
-        DOMAIN,
-        { Finalize: FINALIZE_TYPE },
-        value
+      const podContract = new ethers.Contract(POD_ADDRESS, podAbi, signer);
+      const deliveryContract = new ethers.Contract(
+        DELIVERY_ADDRESS,
+        deliveryAbi,
+        provider
       );
+      const accessRegistry = new ethers.Contract(ACCESS_ADDRESS, accessAbi, provider);
 
-      const { v, r, s } = ethers.Signature.from(signature);
+      // Check if user is Admin
+      const isAdmin = await accessRegistry.hasRole(address, 0); // Role.Admin == 0
 
-      // 6️⃣ Call backend finalize API
-      const response = await axios.post(`${BASE_URL}/delivery/finalize`, {
-        orderId,
-        payee: address,
-        deadline,
-        sig: { v, r, s },
-      });
-
-      console.log("Finalize Result:", response.data);
-
-      if (response.data.success) {
-        toast.success("Delivery finalized & payment released!");
-        setOrderId("");
-      } else {
-        toast.error(response.data.error || "Finalize failed");
+      // Ensure proof exists
+      const proofExists = await podContract.proofExists(id);
+      if (!proofExists) {
+        const tx = await podContract.connect(signer).initProof(id);
+        await tx.wait();
+        toast.info("Proof initialized for this order.");
       }
+
+      // Check assigned carrier
+      const assignedCarrier = await deliveryContract.getAssignedCarrier(id);
+      const isAssignedCarrier = assignedCarrier.toLowerCase() === address.toLowerCase();
+
+      if (!isAssignedCarrier && !isAdmin) {
+        toast.error("You are not authorized to finalize this delivery!");
+        setLoading(false);
+        return;
+      }
+
+      // Finalize delivery
+      const tx = await podContract.connect(signer).finalizeDelivery(id, address);
+      await tx.wait();
+
+      toast.success("✅ Delivery finalized & payment released!");
+      setOrderId("");
     } catch (error) {
       console.error("Finalize Error:", error);
-      toast.error(error.response?.data?.error || error.message || "Failed to finalize delivery");
+
+      let reason = "Failed to finalize delivery";
+      // Check for ethers.js revert error
+      if (error?.error?.message) reason = error.error.message;
+      else if (error?.data?.message) reason = error.data.message;
+      else if (error?.reason) reason = error.reason;
+      else if (error?.message) reason = error.message;
+
+      toast.error(reason);
     } finally {
       setLoading(false);
     }
@@ -96,9 +91,7 @@ export default function FinalizeDelivery() {
 
   return (
     <div className="p-6 border rounded-lg bg-white shadow-sm w-full h-full">
-      <h2 className="mb-4 text-2xl font-bold text-gray-800">
-        Finalize Delivery
-      </h2>
+      <h2 className="mb-4 text-2xl font-bold text-gray-800">Finalize Delivery</h2>
       <form onSubmit={handleSubmit}>
         {/* Wallet Address */}
         <div className="mb-4">

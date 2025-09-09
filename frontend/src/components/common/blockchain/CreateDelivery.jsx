@@ -28,19 +28,19 @@ export default function CreateDelivery({
     try {
       if (!window.ethereum) throw new Error("MetaMask not detected");
       
-      // First create the reservation in the database
-      if (reservationData) {
-        try {
-          setLoading(true);
-          const response = await createReservation(reservationData);
-          toast.success("Reservation created successfully");
-          console.log("✅ Reservation created:", response);
-        } catch (error) {
-          console.error("❌ Error creating reservation:", error);
-          toast.error(error.message || "Failed to create reservation");
-          return; // Stop here if reservation creation fails
-        }
-      }
+      // // First create the reservation in the database
+      // if (reservationData) {
+      //   try {
+      //     setLoading(true);
+      //     const response = await createReservation(reservationData);
+      //     toast.success("Reservation created successfully");
+      //     console.log("✅ Reservation created:", response);
+      //   } catch (error) {
+      //     console.error("❌ Error creating reservation:", error);
+      //     toast.error(error.message || "Failed to create reservation");
+      //     return; // Stop here if reservation creation fails
+      //   }
+      // }
 
       // ✅ validations
       if (!truckId || !origin || !destination)
@@ -134,7 +134,7 @@ const handle = () => {
 }
   return (
     <form
-      onSubmit={handle}
+      onSubmit={handleSubmit}
       className="p-4 space-y-4 rounded-xl shadow w-[400px]"
     >
       <div>

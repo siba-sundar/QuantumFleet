@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { toast } from "react-toastify";
+import { ethers } from "ethers";
 import { LoadingButton } from "./LoadingButton";
 import { Key, Lock, ShieldCheck, ShieldX } from "lucide-react";
-import {
-  grantRole,
-  revokeRole,
-  hasRole as checkHasRole,
-} from "../../../config/blockchain";
+import AccessRegistryABI from "../../../abi/AccessRegistry.json"; // export ABI here
+
+// 🚀 Put your deployed AccessRegistry contract address here
+const ACCESS_CONTRACT_ADDRESS = import.meta.env.VITE_ACCESS_ADDRESS;
 
 const ROLES = [
   { value: 1, label: "Admin" },
@@ -25,12 +25,24 @@ export default function AccessControl() {
   const [hasRole, setHasRole] = useState(null);
   const [activeOperation, setActiveOperation] = useState(null);
 
+  // ✅ Helper: get contract instance
+  const getContract = (withSigner = false) => {
+    if (!window.ethereum) throw new Error("MetaMask not detected");
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    if (withSigner) {
+      return provider.getSigner().then((signer) => {
+        return new ethers.Contract(ACCESS_CONTRACT_ADDRESS, AccessRegistryABI, signer);
+      });
+    }
+    return new ethers.Contract(ACCESS_CONTRACT_ADDRESS, AccessRegistryABI, provider);
+  };
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
     });
-    setHasRole(null); // Reset role check when inputs change
+    setHasRole(null);
   };
 
   const checkRole = async () => {
@@ -43,8 +55,9 @@ export default function AccessControl() {
     setIsLoading(true);
 
     try {
+      const contract = await getContract(false);
       const roleInt = parseInt(formData.role, 10);
-      const response = await checkHasRole(formData.account, roleInt);
+      const response = await contract.hasRole(formData.account, roleInt);
       setHasRole(response);
       toast.success("Role check completed");
     } catch (error) {
@@ -66,8 +79,10 @@ export default function AccessControl() {
     setIsLoading(true);
 
     try {
+      const contract = await getContract(true);
       const roleInt = parseInt(formData.role, 10);
-      await grantRole(formData.account, roleInt);
+      const tx = await contract.grantRole(formData.account, roleInt);
+      await tx.wait();
       toast.success("Role granted successfully");
       setHasRole(true);
     } catch (error) {
@@ -89,8 +104,10 @@ export default function AccessControl() {
     setIsLoading(true);
 
     try {
+      const contract = await getContract(true);
       const roleInt = parseInt(formData.role, 10);
-      await revokeRole(formData.account, roleInt);
+      const tx = await contract.revokeRole(formData.account, roleInt);
+      await tx.wait();
       toast.success("Role revoked successfully");
       setHasRole(false);
     } catch (error) {

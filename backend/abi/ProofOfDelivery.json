@@ -296,29 +296,9 @@
                 "internalType": "address",
                 "name": "payee",
                 "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "deadline",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint8",
-                "name": "v",
-                "type": "uint8"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "r",
-                "type": "bytes32"
-            },
-            {
-                "internalType": "bytes32",
-                "name": "s",
-                "type": "bytes32"
             }
         ],
-        "name": "finalizeWithSig",
+        "name": "finalizeDelivery",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"

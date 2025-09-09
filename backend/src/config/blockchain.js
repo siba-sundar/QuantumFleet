@@ -1,7 +1,6 @@
 // backend/config/blockchain.js
 import { ThirdwebSDK } from "@thirdweb-dev/sdk";
 import dotenv from "dotenv";
-
 dotenv.config();
 
 // Initialize SDK with Thirdweb Secret Key
