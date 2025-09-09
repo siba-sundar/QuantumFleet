@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { toast } from "react-toastify";
 import { LoadingButton } from "./LoadingButton";
 import { useActiveAccount } from "thirdweb/react";
 import { ethers } from "ethers";
@@ -14,21 +13,23 @@ const ACCESS_ADDRESS = import.meta.env.VITE_ACCESS_ADDRESS;
 export default function FinalizeDelivery() {
   const [orderId, setOrderId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState(""); // <-- new state
 
   const account = useActiveAccount();
   const address = account?.address;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setMessage(""); // reset previous message
 
     if (!address) {
-      toast.error("Please connect your wallet first!");
+      setMessage("❌ Please connect your wallet first!");
       return;
     }
 
     const id = parseInt(orderId);
     if (!id || isNaN(id)) {
-      toast.error("Please enter a valid Order ID");
+      setMessage("❌ Please enter a valid Order ID");
       return;
     }
 
@@ -44,7 +45,11 @@ export default function FinalizeDelivery() {
         deliveryAbi,
         provider
       );
-      const accessRegistry = new ethers.Contract(ACCESS_ADDRESS, accessAbi, provider);
+      const accessRegistry = new ethers.Contract(
+        ACCESS_ADDRESS,
+        accessAbi,
+        provider
+      );
 
       // Check if user is Admin
       const isAdmin = await accessRegistry.hasRole(address, 0); // Role.Admin == 0
@@ -54,36 +59,38 @@ export default function FinalizeDelivery() {
       if (!proofExists) {
         const tx = await podContract.connect(signer).initProof(id);
         await tx.wait();
-        toast.info("Proof initialized for this order.");
+        setMessage("ℹ️ Proof initialized for this order.");
       }
 
       // Check assigned carrier
       const assignedCarrier = await deliveryContract.getAssignedCarrier(id);
-      const isAssignedCarrier = assignedCarrier.toLowerCase() === address.toLowerCase();
+      const isAssignedCarrier =
+        assignedCarrier.toLowerCase() === address.toLowerCase();
 
       if (!isAssignedCarrier && !isAdmin) {
-        toast.error("You are not authorized to finalize this delivery!");
+        setMessage("❌ You are not authorized to finalize this delivery!");
         setLoading(false);
         return;
       }
 
       // Finalize delivery
-      const tx = await podContract.connect(signer).finalizeDelivery(id, address);
+      const tx = await podContract
+        .connect(signer)
+        .finalizeDelivery(id, address);
       await tx.wait();
 
-      toast.success("✅ Delivery finalized & payment released!");
+      setMessage("✅ Delivery finalized & payment released!");
       setOrderId("");
     } catch (error) {
       console.error("Finalize Error:", error);
 
-      let reason = "Failed to finalize delivery";
-      // Check for ethers.js revert error
-      if (error?.error?.message) reason = error.error.message;
-      else if (error?.data?.message) reason = error.data.message;
-      else if (error?.reason) reason = error.reason;
-      else if (error?.message) reason = error.message;
+      let reason = "❌ Failed to finalize delivery";
+      if (error?.error?.message) reason = "❌ " + error.error.message;
+      else if (error?.data?.message) reason = "❌ " + error.data.message;
+      else if (error?.reason) reason = "❌ " + error.reason;
+      else if (error?.message) reason = "❌ " + error.message;
 
-      toast.error(reason);
+      setMessage(reason);
     } finally {
       setLoading(false);
     }
@@ -91,7 +98,9 @@ export default function FinalizeDelivery() {
 
   return (
     <div className="p-6 border rounded-lg bg-white shadow-sm w-full h-full">
-      <h2 className="mb-4 text-2xl font-bold text-gray-800">Finalize Delivery</h2>
+      <h2 className="mb-4 text-2xl font-bold text-gray-800">
+        Finalize Delivery
+      </h2>
       <form onSubmit={handleSubmit}>
         {/* Wallet Address */}
         <div className="mb-4">
@@ -130,6 +139,9 @@ export default function FinalizeDelivery() {
           {loading ? "Finalizing..." : "Finalize Delivery"}
         </LoadingButton>
       </form>
+
+      {/* Display message below form */}
+      {message && <p className="mt-4 text-gray-800 font-medium">{message}</p>}
     </div>
   );
 }

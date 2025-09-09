@@ -6,7 +6,7 @@ import { ethers } from "ethers";
 import deliveryAbi from "../../../abi/DeliveryManagement.json";
 // Enum mapping to match smart contract integers
 const STATUS_ENUM = {
-  // Created: 0,
+  Created: 0,
   InTransit: 1,
   // Delivered: 2,
   Cancelled: 3,
@@ -18,6 +18,7 @@ export default function UpdateDeliveryStatus() {
     status: "",
   });
   const [isLoading, setIsLoading] = useState(false);
+   const [successMessage, setSuccessMessage] = useState("");
 
   const handleChange = (e) => {
     setFormData({
@@ -97,12 +98,13 @@ export default function UpdateDeliveryStatus() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setSuccessMessage("");
 
     try {
       // Validate input
       const statusInt = STATUS_ENUM[formData.status];
       if (statusInt === undefined) {
-        toast.error("Invalid status selected");
+        setSuccessMessage("");
         return;
       }
       if (!formData.orderId) throw new Error("Order ID required");
@@ -128,7 +130,8 @@ export default function UpdateDeliveryStatus() {
       // 4️⃣ Wait for tx confirmation
       await tx.wait();
 
-      toast.success(`✅ Status updated to ${formData.status}`);
+      // Display message in text
+      setSuccessMessage(`✅ Status updated to ${formData.status}`);
       setFormData({ orderId: "", status: "" });
     } catch (error) {
       console.error("❌ Error updating status:", error);
@@ -187,6 +190,9 @@ export default function UpdateDeliveryStatus() {
           {isLoading ? "Updating..." : "Update Status"}
         </LoadingButton>
       </form>
+      {successMessage && (
+        <p className="mt-4 text-green-600 font-medium">{successMessage}</p>
+      )}
     </div>
   );
 }
