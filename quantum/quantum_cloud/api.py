@@ -121,39 +121,7 @@ def optimize(
     qaoa_p: int = Query(1, ge=1, le=3, description="QAOA layers p"),
     save_circuit: bool = Query(False, description="Save circuit diagrams as images and text files")
 ):
-    """
-    Optimize VRP using quantum algorithms.
     
-    For QAOA method, you need a properly structured VRP input with locations, vehicles, and depots.
-    The PQC method uses your existing quantum_layer module.
-    
-    Example request body for QAOA:
-    {
-        "locations": [
-            {"location_id": "depot", "lat": 40.7128, "lon": -74.0060, "demand": 0, "priority": 1},
-            {"location_id": "customer1", "lat": 40.7589, "lon": -73.9851, "demand": 5, "priority": 2},
-            {"location_id": "customer2", "lat": 40.6892, "lon": -74.0445, "demand": 3, "priority": 1}
-        ],
-        "vehicles": [
-            {"id": "truck1", "capacity": 10, "current_location": "depot", "type": "medium"},
-            {"id": "truck2", "capacity": 15, "current_location": "depot", "type": "large"}
-        ],
-        "depots": [
-            {"id": "depot", "lat": 40.7128, "lon": -74.0060}
-        ],
-        "constraints": {
-            "max_stops_per_vehicle": 50,
-            "max_distance_per_vehicle": 100,
-            "max_time_per_vehicle": 8,
-            "allowed_vehicle_types": ["medium", "large"]
-        }
-    }
-    
-    Example curl command:
-    curl -X POST "http://127.0.0.1:8000/optimize?shots=1000&method=qaoa" \
-         -H "Content-Type: application/json" \
-         -d @your_vrp_data.json
-    """
     try:
         logger.info(f"Received optimization request: method={method}, shots={shots}")
         logger.info(f"Backend: {ibm_backend.name}")
@@ -317,4 +285,4 @@ def test_backend():
 if __name__ == "__main__":
     import uvicorn
     logger.info("Starting Quantum VRP Optimizer API...")
-    uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("api:app", host="127.0.0.1", port=8080, reload=True)

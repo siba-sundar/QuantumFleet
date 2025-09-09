@@ -488,19 +488,50 @@ const VehicleRoutingOptimizer = () => {
     }
   };
 
+  // Reverse geocoding function
+  const getAddressFromCoordinates = (lat, lon) => {
+    return new Promise((resolve, reject) => {
+      if (!window.google || !window.google.maps) {
+        return resolve(`Location at ${lat}, ${lon}`);
+      }
+      const geocoder = new window.google.maps.Geocoder();
+      const latlng = { lat, lng: lon };
+      geocoder.geocode({ location: latlng }, (results, status) => {
+        if (status === 'OK') {
+          if (results[0]) {
+            resolve(results[0].formatted_address);
+          } else {
+            resolve(`Location at ${lat}, ${lon}`);
+          }
+        } else {
+          console.warn('Geocoder failed due to: ' + status);
+          resolve(`Location at ${lat}, ${lon}`);
+        }
+      });
+    });
+  };
+
   // Load default data
-  const loadDefaultData = () => {
+  const loadDefaultData = async () => {
     setVehicles(defaultData.vehicles);
-    setDepots(defaultData.depots.map(depot => ({
-      ...depot,
-      address: `Depot at ${depot.lat}, ${depot.lon}`,
-      placeId: `default_${depot.id}`
-    })));
-    setLocations(defaultData.locations.map(location => ({
-      ...location,
-      address: `Location at ${location.lat}, ${location.lon}`,
-      placeId: `default_${location.id}`
-    })));
+
+    const depotsWithAddresses = await Promise.all(
+      defaultData.depots.map(async (depot) => ({
+        ...depot,
+        address: await getAddressFromCoordinates(depot.lat, depot.lon),
+        placeId: `default_${depot.id}`
+      }))
+    );
+    setDepots(depotsWithAddresses);
+
+    const locationsWithAddresses = await Promise.all(
+      defaultData.locations.map(async (location) => ({
+        ...location,
+        address: await getAddressFromCoordinates(location.lat, location.lon),
+        placeId: `default_${location.id}`
+      }))
+    );
+    setLocations(locationsWithAddresses);
   };
 
   const handleOptimize = async () => {
@@ -588,16 +619,10 @@ const VehicleRoutingOptimizer = () => {
             <Map size={24} className="text-[#020073]" />
             Route Visualization
           </h3>
-          <GoogleMap 
-            results={results} 
-            depots={depots.length > 0 ? depots : defaultData.depots.map(depot => ({
-              ...depot,
-              address: `Depot at ${depot.lat}, ${depot.lon}`
-            }))} 
-            locations={locations.length > 0 ? locations : defaultData.locations.map(location => ({
-              ...location,
-              address: `Location at ${location.lat}, ${location.lon}`
-            }))} 
+          <GoogleMap
+            results={results}
+            depots={depots.length > 0 ? depots : defaultData.depots}
+            locations={locations.length > 0 ? locations : defaultData.locations}
           />
         </div>
         

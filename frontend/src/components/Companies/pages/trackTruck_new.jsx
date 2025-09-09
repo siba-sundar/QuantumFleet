@@ -110,7 +110,7 @@ function TruckDetails() {
     }, []);
 
     const [selectedTruckId, setSelectedTruckId] = useState(null);
-    const selectedTruck = trucks.find(t => t.id === selectedTruckId) || trucks[0];
+    const selectedTruck = useMemo(() => trucks.find(t => t.id === selectedTruckId) || trucks[0], [trucks, selectedTruckId]);
     const driverRepo = new DriverRepository();
 
     // Resolve and set driver UID for a given truck
