@@ -409,7 +409,7 @@ function TruckDetails() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-            <div className="grid grid-cols-[280px_1fr] h-screen">
+            <div className="grid grid-cols-[20%_80%] h-screen">
                 {/* Sidebar */}
                 <SideBar trucks={trucks} selectedId={selectedDriverId ?? selectedTruckId} onSelect={handleTruckSelect} businessUid={user?.userType === 'business' ? user?.uid : null} />
 

@@ -1,0 +1,11 @@
+qiskit
+qiskit-ibm-runtime
+numpy
+pandas
+matplotlib
+fastapi
+uvicorn[standard]
+networkx
+requests
+python-dotenv
+scikit-learn

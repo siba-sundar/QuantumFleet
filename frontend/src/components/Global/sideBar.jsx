@@ -104,7 +104,7 @@ function SideBar({ trucks: propTrucks, selectedId, onSelect, businessUid }) {
 
     return (
         <div>
-            <div className="fixed left-0 top-[80px] h-[calc(100vh-80px)] w-[20%] shadow-xl mt-1 bg-white z-40">
+            <div className="sticky top-0 self-start h-screen w-full bg-white shadow-xl border-r border-gray-200 overflow-y-auto">
                 {/* Dropdown Filter */}
                 <div className="px-4 pt-4">
                     <select
