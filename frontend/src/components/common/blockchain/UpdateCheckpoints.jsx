@@ -1,183 +1,141 @@
-import React, { useState } from 'react';
-import { toast } from 'react-hot-toast';
-import { apiAddCheckpoint } from '../../../utils/blockchain_apis';
-import { LoadingButton } from './LoadingButton';
-import { MapPin, Clock } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import { ethers } from "ethers";
+import { toast } from "react-toastify";
+import podAbi from "../../../abi/ProofOfDelivery.json";
 
-export const UpdateCheckpoints = () => {
-  const [formData, setFormData] = useState({
-    orderId: '',
-    latE6: '',
-    lonE6: '',
-    status: '',
-    timestamp: ''
-  });
-  const [isLoading, setIsLoading] = useState(false);
+const POD_ADDRESS = import.meta.env.VITE_POD_ADDRESS;
+
+export default function UpdateCheckpoints({ blockchainOrderId }) {
   const [checkpoints, setCheckpoints] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+  const fetchCheckpoints = async () => {
+    if (!blockchainOrderId) return;
+    try {
+      if (!window.ethereum) throw new Error("MetaMask not detected");
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const podContract = new ethers.Contract(POD_ADDRESS, podAbi, signer);
+
+      // Assuming contract has getCheckpoints(orderId) returning array of structs
+      const cps = await podContract.getCheckpoints(Number(blockchainOrderId));
+      const formatted = cps.map((cp) => ({
+        lat: Number(cp.lat) / 1e6,
+        lon: Number(cp.lon) / 1e6,
+        timestamp: Number(cp.plannedTime),
+      }));
+      setCheckpoints(formatted);
+      console.log("[✅ Fetched Checkpoints]", formatted);
+    } catch (err) {
+      console.error("Failed to fetch checkpoints:", err);
+      toast.error("Failed to fetch checkpoints");
+    }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
+  useEffect(() => {
+    fetchCheckpoints();
+  }, [blockchainOrderId]);
 
+  const handleChange = (index, field, value) => {
+    const updated = [...checkpoints];
+    updated[index][field] = value;
+    setCheckpoints(updated);
+  };
+
+  const handleUpdate = async () => {
+    if (!blockchainOrderId) return;
+    setLoading(true);
     try {
-      // Convert lat/lon to E6 format (multiply by 1e6)
-      const latE6 = Math.round(parseFloat(formData.latE6) * 1e6);
-      const lonE6 = Math.round(parseFloat(formData.lonE6) * 1e6);
-      const ts = new Date(formData.timestamp).getTime() / 1000; // Convert to unix timestamp
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const podContract = new ethers.Contract(POD_ADDRESS, podAbi, signer);
 
-      const response = await apiAddCheckpoint(
-        formData.orderId,
-        latE6,
-        lonE6,
-        ts,
-        formData.status
+      const latE6s = checkpoints.map((cp) => {
+        const val = Math.round(Number(cp.lat) * 1e6);
+        if (val > 2 ** 255 - 1 || val < -(2 ** 255)) throw new Error("Latitude out of int256 range");
+        return val;
+      });
+
+      const lonE6s = checkpoints.map((cp) => {
+        const val = Math.round(Number(cp.lon) * 1e6);
+        if (val > 2 ** 255 - 1 || val < -(2 ** 255)) throw new Error("Longitude out of int256 range");
+        return val;
+      });
+
+      const plannedTimes = checkpoints.map((cp) => {
+        const val = Math.floor(Number(cp.timestamp));
+        if (val < 0) throw new Error("Invalid timestamp");
+        return val;
+      });
+
+      // Assuming contract has updateCheckpoints(orderId, lat[], lon[], time[])
+      const tx = await podContract.updateCheckpoints(
+        Number(blockchainOrderId),
+        latE6s,
+        lonE6s,
+        plannedTimes
       );
-
-      // Add to local state for immediate UI update
-      setCheckpoints([
-        ...checkpoints,
-        {
-          ...formData,
-          timestamp: new Date(formData.timestamp).toLocaleString()
-        }
-      ]);
-
-      toast.success('Checkpoint added successfully!');
-      
-      // Clear form except orderId
-      setFormData(prev => ({
-        ...prev,
-        latE6: '',
-        lonE6: '',
-        status: '',
-        timestamp: ''
-      }));
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to add checkpoint');
-      console.error('Error:', error);
+      await tx.wait();
+      toast.success("Checkpoints updated successfully!");
+      console.log("[✅ Checkpoints updated]");
+    } catch (err) {
+      console.error("Failed to update checkpoints:", err);
+      toast.error(err.message || "Update failed");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <h2 className="mb-4 text-2xl font-bold text-gray-800">Update Checkpoints</h2>
-      
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Order ID</label>
-          <input
-            type="text"
-            name="orderId"
-            value={formData.orderId}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border rounded-md"
-            required
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Latitude</label>
-            <input
-              type="number"
-              name="latE6"
-              value={formData.latE6}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border rounded-md"
-              required
-              step="0.000001"
-              placeholder="e.g. 51.509865"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Longitude</label>
-            <input
-              type="number"
-              name="lonE6"
-              value={formData.lonE6}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border rounded-md"
-              required
-              step="0.000001"
-              placeholder="e.g. -0.118092"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Status</label>
-          <select
-            name="status"
-            value={formData.status}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border rounded-md"
-            required
-          >
-            <option value="">Select Status</option>
-            <option value="In Transit">In Transit</option>
-            <option value="Loading">Loading</option>
-            <option value="Unloading">Unloading</option>
-            <option value="Delayed">Delayed</option>
-            <option value="Resting">Resting</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Timestamp</label>
-          <input
-            type="datetime-local"
-            name="timestamp"
-            value={formData.timestamp}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border rounded-md"
-            required
-          />
-        </div>
-
-        <LoadingButton
-          type="submit"
-          isLoading={isLoading}
-          className="w-full"
-        >
-          Add Checkpoint
-        </LoadingButton>
-      </form>
-
-      {/* Checkpoints Timeline */}
-      {checkpoints.length > 0 && (
-        <div className="mt-8">
-          <h3 className="mb-4 text-lg font-semibold text-gray-700">Recent Checkpoints</h3>
-          <div className="space-y-4">
-            {checkpoints.map((checkpoint, index) => (
-              <div key={index} className="flex items-start p-4 bg-gray-50 rounded-lg">
-                <div className="flex-shrink-0 p-2 bg-blue-100 rounded-full">
-                  <MapPin className="w-5 h-5 text-blue-600" />
-                </div>
-                <div className="ml-4">
-                  <div className="font-medium text-gray-900">{checkpoint.status}</div>
-                  <div className="text-sm text-gray-600">
-                    {checkpoint.latE6}, {checkpoint.lonE6}
-                  </div>
-                  <div className="flex items-center mt-1 text-sm text-gray-500">
-                    <Clock className="w-4 h-4 mr-1" />
-                    {checkpoint.timestamp}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="p-6 max-w-2xl mx-auto bg-white rounded-2xl shadow space-y-4">
+      <h2 className="text-xl font-semibold text-gray-800 text-center">
+        Update Checkpoints
+      </h2>
+      {checkpoints.length === 0 ? (
+        <p className="text-gray-500 text-center">No checkpoints found</p>
+      ) : (
+        <div className="space-y-3">
+          {checkpoints.map((cp, idx) => (
+            <div key={idx} className="grid grid-cols-3 gap-2 items-center bg-gray-50 p-2 rounded">
+              <input
+                type="number"
+                step="0.000001"
+                value={cp.lat}
+                onChange={(e) => handleChange(idx, "lat", e.target.value)}
+                className="p-1 border rounded w-full"
+                placeholder="Latitude"
+              />
+              <input
+                type="number"
+                step="0.000001"
+                value={cp.lon}
+                onChange={(e) => handleChange(idx, "lon", e.target.value)}
+                className="p-1 border rounded w-full"
+                placeholder="Longitude"
+              />
+              <input
+                type="datetime-local"
+                value={new Date(cp.timestamp * 1000).toISOString().slice(0, 16)}
+                onChange={(e) => {
+                  const ts = Math.floor(new Date(e.target.value).getTime() / 1000);
+                  handleChange(idx, "timestamp", ts);
+                }}
+                className="p-1 border rounded w-full"
+              />
+            </div>
+          ))}
         </div>
       )}
+
+      <button
+        onClick={handleUpdate}
+        disabled={loading || checkpoints.length === 0}
+        className={`w-full py-3 mt-3 text-white font-semibold rounded-xl flex justify-center items-center ${
+          loading ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
+        }`}
+      >
+        {loading ? "Updating..." : "Update Checkpoints"}
+      </button>
     </div>
   );
-};
+}

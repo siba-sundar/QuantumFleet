@@ -15,16 +15,6 @@
                 "internalType": "address",
                 "name": "escrowContract",
                 "type": "address"
-            },
-            {
-                "internalType": "string",
-                "name": "name",
-                "type": "string"
-            },
-            {
-                "internalType": "string",
-                "name": "version",
-                "type": "string"
             }
         ],
         "stateMutability": "nonpayable",
@@ -37,7 +27,7 @@
     },
     {
         "inputs": [],
-        "name": "BadSigner",
+        "name": "CheckpointAlreadyReached",
         "type": "error"
     },
     {
@@ -67,17 +57,18 @@
         "type": "error"
     },
     {
-        "inputs": [],
-        "name": "SignatureExpired",
-        "type": "error"
-    },
-    {
         "anonymous": false,
         "inputs": [
             {
                 "indexed": true,
                 "internalType": "uint256",
                 "name": "orderId",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "index",
                 "type": "uint256"
             },
             {
@@ -95,7 +86,7 @@
             {
                 "indexed": false,
                 "internalType": "uint40",
-                "name": "time",
+                "name": "plannedTime",
                 "type": "uint40"
             },
             {
@@ -120,6 +111,37 @@
             {
                 "indexed": false,
                 "internalType": "uint256",
+                "name": "index",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint40",
+                "name": "actualTime",
+                "type": "uint40"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "by",
+                "type": "address"
+            }
+        ],
+        "name": "CheckpointReached",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "orderId",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
                 "name": "time",
                 "type": "uint256"
             },
@@ -127,12 +149,6 @@
                 "indexed": true,
                 "internalType": "address",
                 "name": "by",
-                "type": "address"
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "signer",
                 "type": "address"
             }
         ],
@@ -178,32 +194,6 @@
         "type": "event"
     },
     {
-        "inputs": [],
-        "name": "DOMAIN_SEPARATOR",
-        "outputs": [
-            {
-                "internalType": "bytes32",
-                "name": "",
-                "type": "bytes32"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "FINALIZE_TYPEHASH",
-        "outputs": [
-            {
-                "internalType": "bytes32",
-                "name": "",
-                "type": "bytes32"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
         "inputs": [
             {
                 "internalType": "uint256",
@@ -222,7 +212,7 @@
             },
             {
                 "internalType": "uint256",
-                "name": "ts",
+                "name": "plannedTime",
                 "type": "uint256"
             }
         ],
@@ -250,7 +240,7 @@
             },
             {
                 "internalType": "uint256[]",
-                "name": "ts",
+                "name": "plannedTimes",
                 "type": "uint256[]"
             }
         ],
@@ -346,7 +336,12 @@
                     },
                     {
                         "internalType": "uint40",
-                        "name": "time",
+                        "name": "plannedTime",
+                        "type": "uint40"
+                    },
+                    {
+                        "internalType": "uint40",
+                        "name": "actualTime",
                         "type": "uint40"
                     }
                 ],
@@ -423,19 +418,23 @@
         "inputs": [
             {
                 "internalType": "uint256",
-                "name": "",
+                "name": "orderId",
                 "type": "uint256"
-            }
-        ],
-        "name": "nonces",
-        "outputs": [
+            },
             {
                 "internalType": "uint256",
-                "name": "",
+                "name": "index",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "actualTime",
                 "type": "uint256"
             }
         ],
-        "stateMutability": "view",
+        "name": "markCheckpointReached",
+        "outputs": [],
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {

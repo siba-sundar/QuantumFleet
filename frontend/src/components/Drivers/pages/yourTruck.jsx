@@ -22,6 +22,7 @@ import {
 } from "../../../utils/blockchain_apis";
 import UpdateDeliveryStatus from "../../common/blockchain/UpdateDeliveryStatus.jsx";
 import FinalizeDelivery from "../../common/blockchain/FinalizeDelivery.jsx";
+import UpdateCheckpoints from "../../common/blockchain/UpdateCheckpoints.jsx";
 
 function TruckDetails() {
   const { user } = useAuth();

@@ -91,6 +91,7 @@ const ReservationSystem = () => {
   // Handle checkpoint location selection
   const handleCheckpointLocationSelect = (truckIndex, checkpointIndex, locationData) => {
     const newTrucks = [...trucks];
+    console.log(locationData)
     newTrucks[truckIndex].checkpoints[checkpointIndex].location = locationData ? locationData.address : '';
     newTrucks[truckIndex].checkpoints[checkpointIndex].locationData = locationData;
     setTrucks(newTrucks);
@@ -866,7 +867,13 @@ const handleCreateDeliverySuccess = async (orderId) => {
                     licenseNumber: selectedDrivers[index].licenseNumber,
                     walletAddress: selectedDrivers[index].walletAddress,
                     truckId: selectedDrivers[index].truckId
-                  } : null
+                  } : null,
+                  checkpoints: truck.checkpoints ? truck.checkpoints.map(cp => ({
+                    ...cp,
+                    latitude: cp.locationData?.coordinates.lat || null,
+                    longitude: cp.locationData?.coordinates.lng || null,
+                    timestamp: cp.date ? new Date(cp.date + 'T00:00:00').getTime() : null
+                  })) : []
                 }))
               }}
             />
