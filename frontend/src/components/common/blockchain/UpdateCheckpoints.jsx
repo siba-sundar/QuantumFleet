@@ -1,13 +1,39 @@
 import React, { useEffect, useState } from "react";
 import { ethers } from "ethers";
 import { toast } from "react-toastify";
+import { CheckCircle, MapPin, Loader2 } from "lucide-react";
 import podAbi from "../../../abi/ProofOfDelivery.json";
 
 const POD_ADDRESS = import.meta.env.VITE_POD_ADDRESS;
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 export default function UpdateCheckpoints({ blockchainOrderId }) {
   const [checkpoints, setCheckpoints] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingIndex, setLoadingIndex] = useState(null);
+
+  // Google Maps reverse geocode
+  const reverseGeocode = async (lat, lon) => {
+    try {
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${GOOGLE_MAPS_API_KEY}`
+      );
+      const data = await res.json();
+      if (data.status === "OK" && data.results.length > 0) {
+        const result = data.results[0];
+        const cityComponent = result.address_components.find((c) =>
+          c.types.includes("locality")
+        );
+        const stateComponent = result.address_components.find((c) =>
+          c.types.includes("administrative_area_level_1")
+        );
+        return cityComponent?.long_name || stateComponent?.long_name || "Unknown";
+      }
+      return "Unknown";
+    } catch (err) {
+      console.error("Reverse geocoding failed:", err);
+      return "Unknown";
+    }
+  };
 
   const fetchCheckpoints = async () => {
     if (!blockchainOrderId) return;
@@ -17,13 +43,22 @@ export default function UpdateCheckpoints({ blockchainOrderId }) {
       const signer = await provider.getSigner();
       const podContract = new ethers.Contract(POD_ADDRESS, podAbi, signer);
 
-      // Assuming contract has getCheckpoints(orderId) returning array of structs
       const cps = await podContract.getCheckpoints(Number(blockchainOrderId));
-      const formatted = cps.map((cp) => ({
-        lat: Number(cp.lat) / 1e6,
-        lon: Number(cp.lon) / 1e6,
-        timestamp: Number(cp.plannedTime),
-      }));
+      const formatted = await Promise.all(
+        cps.map(async (cp, idx) => {
+          const lat = Number(cp.latE6) / 1e6;
+          const lon = Number(cp.lonE6) / 1e6;
+          const city = await reverseGeocode(lat, lon);
+          return {
+            index: idx,
+            lat,
+            lon,
+            city,
+            plannedTime: Number(cp.plannedTime),
+            actualTime: Number(cp.actualTime),
+          };
+        })
+      );
       setCheckpoints(formatted);
       console.log("[✅ Fetched Checkpoints]", formatted);
     } catch (err) {
@@ -36,106 +71,85 @@ export default function UpdateCheckpoints({ blockchainOrderId }) {
     fetchCheckpoints();
   }, [blockchainOrderId]);
 
-  const handleChange = (index, field, value) => {
-    const updated = [...checkpoints];
-    updated[index][field] = value;
-    setCheckpoints(updated);
-  };
-
-  const handleUpdate = async () => {
+  const handleMarkReached = async (index) => {
     if (!blockchainOrderId) return;
-    setLoading(true);
+    setLoadingIndex(index);
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const podContract = new ethers.Contract(POD_ADDRESS, podAbi, signer);
 
-      const latE6s = checkpoints.map((cp) => {
-        const val = Math.round(Number(cp.lat) * 1e6);
-        if (val > 2 ** 255 - 1 || val < -(2 ** 255)) throw new Error("Latitude out of int256 range");
-        return val;
-      });
-
-      const lonE6s = checkpoints.map((cp) => {
-        const val = Math.round(Number(cp.lon) * 1e6);
-        if (val > 2 ** 255 - 1 || val < -(2 ** 255)) throw new Error("Longitude out of int256 range");
-        return val;
-      });
-
-      const plannedTimes = checkpoints.map((cp) => {
-        const val = Math.floor(Number(cp.timestamp));
-        if (val < 0) throw new Error("Invalid timestamp");
-        return val;
-      });
-
-      // Assuming contract has updateCheckpoints(orderId, lat[], lon[], time[])
-      const tx = await podContract.updateCheckpoints(
+      const now = Math.floor(Date.now() / 1000);
+      const tx = await podContract.markCheckpointReached(
         Number(blockchainOrderId),
-        latE6s,
-        lonE6s,
-        plannedTimes
+        index,
+        now
       );
       await tx.wait();
-      toast.success("Checkpoints updated successfully!");
-      console.log("[✅ Checkpoints updated]");
+
+      toast.success(`Checkpoint ${index + 1} marked as reached ✅`);
+      console.log("[✅ Checkpoint marked]", { index, now });
+
+      fetchCheckpoints(); // refresh UI
     } catch (err) {
-      console.error("Failed to update checkpoints:", err);
+      console.error("Failed to mark checkpoint:", err);
       toast.error(err.message || "Update failed");
     } finally {
-      setLoading(false);
+      setLoadingIndex(null);
     }
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto bg-white rounded-2xl shadow space-y-4">
+    <div className="p-6 max-w-3xl mx-auto bg-white rounded-2xl shadow space-y-4">
       <h2 className="text-xl font-semibold text-gray-800 text-center">
         Update Checkpoints
       </h2>
+
       {checkpoints.length === 0 ? (
         <p className="text-gray-500 text-center">No checkpoints found</p>
       ) : (
         <div className="space-y-3">
-          {checkpoints.map((cp, idx) => (
-            <div key={idx} className="grid grid-cols-3 gap-2 items-center bg-gray-50 p-2 rounded">
-              <input
-                type="number"
-                step="0.000001"
-                value={cp.lat}
-                onChange={(e) => handleChange(idx, "lat", e.target.value)}
-                className="p-1 border rounded w-full"
-                placeholder="Latitude"
-              />
-              <input
-                type="number"
-                step="0.000001"
-                value={cp.lon}
-                onChange={(e) => handleChange(idx, "lon", e.target.value)}
-                className="p-1 border rounded w-full"
-                placeholder="Longitude"
-              />
-              <input
-                type="datetime-local"
-                value={new Date(cp.timestamp * 1000).toISOString().slice(0, 16)}
-                onChange={(e) => {
-                  const ts = Math.floor(new Date(e.target.value).getTime() / 1000);
-                  handleChange(idx, "timestamp", ts);
-                }}
-                className="p-1 border rounded w-full"
-              />
+          {checkpoints.map((cp) => (
+            <div
+              key={cp.index}
+              className="flex flex-col md:flex-row md:items-center md:justify-between bg-gray-50 p-3 rounded"
+            >
+              <div className="flex-1">
+                <p className="font-medium text-indigo-700 flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  {cp.city}
+                </p>
+                <p className="text-xs text-gray-500">
+                  ({cp.lat.toFixed(6)}, {cp.lon.toFixed(6)})
+                </p>
+                {cp.actualTime > 0 && (
+                  <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                    <CheckCircle className="w-3 h-3" />
+                    Reached at {new Date(cp.actualTime * 1000).toLocaleString()}
+                  </p>
+                )}
+              </div>
+
+              {cp.actualTime === 0 && (
+                <button
+                  onClick={() => handleMarkReached(cp.index)}
+                  disabled={loadingIndex === cp.index}
+                  className="mt-2 md:mt-0 px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 flex items-center gap-2"
+                >
+                  {loadingIndex === cp.index ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    "Mark as Reached"
+                  )}
+                </button>
+              )}
             </div>
           ))}
         </div>
       )}
-
-      <button
-        onClick={handleUpdate}
-        disabled={loading || checkpoints.length === 0}
-        className={`w-full py-3 mt-3 text-white font-semibold rounded-xl flex justify-center items-center ${
-          loading ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
-        }`}
-      >
-        {loading ? "Updating..." : "Update Checkpoints"}
-      </button>
     </div>
   );
 }

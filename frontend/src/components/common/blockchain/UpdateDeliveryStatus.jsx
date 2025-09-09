@@ -8,7 +8,7 @@ import deliveryAbi from "../../../abi/DeliveryManagement.json";
 const STATUS_ENUM = {
   Created: 0,
   InTransit: 1,
-  Delivered: 2,
+  // Delivered: 2,
   Cancelled: 3,
 };
 
