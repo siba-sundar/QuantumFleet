@@ -13,25 +13,36 @@ import {
   Bell,
   CheckCircle,
   X,
+  Airplay,
 } from "lucide-react";
 import { toast } from "react-toastify";
+import {
+  apiFinalizeDelivery,
+  apiAddCheckpoint,
+} from "../../../utils/blockchain_apis";
+import UpdateDeliveryStatus from "../../common/blockchain/UpdateDeliveryStatus.jsx";
+import FinalizeDelivery from "../../common/blockchain/FinalizeDelivery.jsx";
+import UpdateCheckpoints from "../../common/blockchain/UpdateCheckpoints.jsx";
+
 function TruckDetails() {
   const { user } = useAuth();
   const [trucks, setTrucks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [alerts, setAlerts] = useState([]); // Initialize alerts state
-  const [sosSending, setSosSending] = useState(false); // Initialize SOS sending state
-  const [showSOSDialog, setShowSOSDialog] = useState(false); // Initialize SOS dialog visibility
-  const [sosType, setSOSType] = useState("general"); // Default SOS type
-  const [sosMessage, setSOSMessage] = useState(""); // Initialize SOS message state
-  const [sosUrgency, setSOSUrgency] = useState("high"); // Default SOS urgency
-  const [incomingAlerts, setIncomingAlerts] = useState([]); // Initialize incoming alerts state
-  const [showIncomingAlerts, setShowIncomingAlerts] = useState(false); // Initialize incoming alerts visibility
-  const [driverProfile, setDriverProfile] = useState(null); // Initialize driver profile state
-  const [statusNote, setStatusNote] = useState(""); // For status update notes
-  const [statusUpdates, setStatusUpdates] = useState([]); // For tracking status update history
-  const [selectedStatus, setSelectedStatus] = useState(""); // For tracking selected status before update
-  const [showFinalizeModal, setShowFinalizeModal] = useState(false); // For finalize delivery modal
+  const [alerts, setAlerts] = useState([]);
+  const [sosSending, setSosSending] = useState(false);
+  const [isFinalizing, setisFinalizing] = useState(false);
+  const [showSOSDialog, setShowSOSDialog] = useState(false);
+  const [sosType, setSOSType] = useState("general");
+  const [sosMessage, setSOSMessage] = useState("");
+  const [sosUrgency, setSOSUrgency] = useState("high");
+  const [incomingAlerts, setIncomingAlerts] = useState([]);
+  const [showIncomingAlerts, setShowIncomingAlerts] = useState(false);
+  const [driverProfile, setDriverProfile] = useState(null);
+  const [statusNote, setStatusNote] = useState("");
+  const [statusUpdates, setStatusUpdates] = useState([]);
+  const [selectedStatus, setSelectedStatus] = useState("");
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+  const [blockchainOrderId, setBlockchainOrderId] = useState("");
   const [finalizeForm, setFinalizeForm] = useState({
     orderId: "",
     walletAddress: "",
@@ -47,46 +58,38 @@ function TruckDetails() {
     condition: "good",
   });
 
-  // Function to update delivery status
-  const updateDeliveryStatus = async (status, notes = "" ) => {
-    if (!selectedTruck?.reservationId) {
-      toast.error("No reservation ID found");
+  // Function to update delivery status with blockchain integration
+  const updateDeliveryStatus = async (status, notes = "") => {
+    if (!selectedTruck?.orderId) {
+      toast.error("No order ID found");
       return;
     }
 
     try {
-      const response = await fetch(
-        `/api/deliveries/${selectedTruck.reservationId}/status`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            status,
-            notes,
-            timestamp: new Date().toISOString(),
-          }),
-        }
+      // Update checkpoint and status on blockchain
+      await apiAddCheckpoint(
+        selectedTruck.orderId,
+        currentLocation?.latitude * 1e6 || 0,
+        currentLocation?.longitude * 1e6 || 0,
+        Math.floor(Date.now() / 1000),
+        status
       );
-
-      if (!response.ok) {
-        throw new Error("Failed to update delivery status");
-      }
-
-      const result = await response.json();
 
       // Update local state
       setTrucks((prevTrucks) =>
         prevTrucks.map((truck) =>
-          truck.reservationId === selectedTruck.reservationId
+          truck.orderId === selectedTruck.orderId
             ? {
                 ...truck,
                 deliveryStatus: status,
-                lastStatusUpdate: result.statusUpdate.timestamp,
+                lastStatusUpdate: new Date().toISOString(),
                 statusHistory: [
                   ...(truck.statusHistory || []),
-                  result.statusUpdate,
+                  {
+                    status,
+                    notes,
+                    timestamp: new Date().toISOString(),
+                  },
                 ],
               }
             : truck
@@ -94,12 +97,21 @@ function TruckDetails() {
       );
 
       // Update status updates history
-      setStatusUpdates((prev) => [...prev, result.statusUpdate]);
+      setStatusUpdates((prev) => [
+        ...prev,
+        {
+          status,
+          notes,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
       setStatusNote(""); // Clear the notes
       toast.success("Delivery status updated successfully");
     } catch (error) {
       console.error("Error updating delivery status:", error);
-      toast.error("Failed to update delivery status");
+      toast.error(
+        error.response?.data?.error || "Failed to update delivery status"
+      );
     }
   };
 
@@ -116,7 +128,9 @@ function TruckDetails() {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_API_BASE}/api/deliveries/${selectedTruck.reservationId}/checkpoint`,
+        `${import.meta.env.VITE_API_BASE}/api/deliveries/${
+          selectedTruck.reservationId
+        }/checkpoint`,
         {
           method: "PUT",
           headers: {
@@ -263,6 +277,7 @@ function TruckDetails() {
             if (reservationResponse.ok) {
               const resData = await reservationResponse.json();
               reservationData = resData.reservation;
+              setBlockchainOrderId(reservationData.blockchainOrderId || -1);
             }
           } catch (error) {
             console.warn("Error loading driver reservation data:", error);
@@ -1257,28 +1272,30 @@ function TruckDetails() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-100 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Modern Header */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="mb-10">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-                Your Truck Dashboard
+              <h1 className="text-3xl font-extrabold text-indigo-900 mb-2 tracking-tight drop-shadow-lg">
+                🚚 Your Truck Dashboard
               </h1>
-              <div className="flex flex-wrap items-center gap-4 text-sm">
-                <span className="flex items-center text-gray-600">
-                  <Truck className="w-4 h-4 mr-2" />
-                  <span className="font-medium">Truck:</span>{" "}
-                  {selectedTruck.number}
+              <div className="flex flex-wrap items-center gap-4 text-base mt-2">
+                <span className="flex items-center text-indigo-700 font-semibold">
+                  <Truck className="w-5 h-5 mr-2" />
+                  Truck:{" "}
+                  <span className="ml-1 text-indigo-900 font-bold">
+                    {selectedTruck.number}
+                  </span>
                 </span>
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                  className={`px-4 py-1 rounded-full text-sm font-bold shadow ${
                     truckDetails.deliveryStatus === "Reserved"
-                      ? "bg-blue-100 text-blue-800"
+                      ? "bg-blue-200 text-blue-900"
                       : truckDetails.deliveryStatus === "Active"
-                      ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-800"
+                      ? "bg-green-200 text-green-900"
+                      : "bg-gray-200 text-gray-900"
                   }`}
                 >
                   {truckDetails.deliveryStatus}
@@ -1287,16 +1304,16 @@ function TruckDetails() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               {/* Incoming Alerts Button */}
               {incomingAlerts.length > 0 && (
                 <button
                   onClick={() => setShowIncomingAlerts(true)}
-                  className="relative px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center shadow-lg border-2 border-blue-600 hover:border-blue-700 font-bold"
+                  className="relative px-7 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:scale-105 transition-transform flex items-center shadow-xl border-2 border-blue-600 hover:border-indigo-700 font-bold"
                 >
                   <Bell className="w-5 h-5 mr-2" />
                   <span className="hidden sm:inline">Messages</span>
-                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold border-2 border-white">
                     {incomingAlerts.length}
                   </span>
                 </button>
@@ -1306,12 +1323,12 @@ function TruckDetails() {
               <button
                 onClick={handleSOS}
                 disabled={sosSending}
-                className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-bold shadow-lg disabled:opacity-50 flex items-center border-2 border-red-600 hover:border-red-700"
+                className="px-8 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl hover:scale-105 transition-transform font-extrabold shadow-xl disabled:opacity-50 flex items-center border-2 border-red-600 hover:border-pink-700"
               >
-                <AlertTriangle className="w-5 h-5 mr-2" />
+                <AlertTriangle className="w-6 h-6 mr-3" />
                 {sosSending ? (
                   <>
-                    <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
+                    <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></span>
                     Sending...
                   </>
                 ) : (
@@ -1323,19 +1340,19 @@ function TruckDetails() {
         </div>
 
         {/* Main Content - Three Column Layout */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           {/* Left Column - Map (2/3 width on large screens) */}
           <div className="xl:col-span-2">
-            <div className="bg-white rounded-xl shadow-lg p-6 h-[890px]">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-white rounded-3xl shadow-2xl p-8 h-[900px] border border-indigo-100">
+              <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center">
-                  <MapPin className="w-6 h-6 text-green-600 mr-3" />
-                  <h2 className="text-xl font-bold text-gray-900">
+                  <MapPin className="w-8 h-8 text-indigo-600 mr-4 drop-shadow" />
+                  <h2 className="text-2xl font-extrabold text-indigo-900 tracking-tight">
                     Live Location Tracking
                   </h2>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-sm text-gray-500">
+                <div className="flex items-center gap-4">
+                  <div className="text-base text-indigo-700 font-semibold">
                     {currentLocation
                       ? `${currentLocation.lat?.toFixed(
                           4
@@ -1347,9 +1364,9 @@ function TruckDetails() {
                       onClick={() =>
                         window.open(googleMapsEmbedData.externalUrl, "_blank")
                       }
-                      className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium flex items-center"
+                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:scale-105 transition-transform font-bold flex items-center"
                     >
-                      <Navigation className="w-4 h-4 mr-2" />
+                      <Navigation className="w-5 h-5 mr-2" />
                       Open in Maps
                     </button>
                   )}
@@ -1504,331 +1521,9 @@ function TruckDetails() {
           </div>
 
           {/* Right Column - Sidebar (1/3 width on large screens) */}
-          <div className="space-y-6">
-            {/* Delivery Status Update Card */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center mb-4">
-                <ActivitySquare className="w-6 h-6 text-indigo-600 mr-3" />
-                <h2 className="text-lg font-bold text-gray-900">
-                  Delivery Status
-                </h2>
-              </div>
-
-              <div className="space-y-4">
-                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg p-4 border border-indigo-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-indigo-900">
-                      Current Status
-                    </span>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        truckDetails.deliveryStatus === "Reserved"
-                          ? "bg-blue-100 text-blue-800"
-                          : truckDetails.deliveryStatus === "Active"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {truckDetails.deliveryStatus}
-                    </span>
-                  </div>
-
-                  <div className="space-y-3">
-                    <select
-                      className="w-full p-2 border border-indigo-200 rounded-lg bg-white text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      value={selectedStatus || truckDetails.deliveryStatus}
-                      onChange={(e) => setSelectedStatus(e.target.value)}
-                    >
-                      <option value="Loading">🔄 Loading in Progress</option>
-                      <option value="In Transit">🚚 In Transit</option>
-                      <option value="Delivering">📦 Delivering</option>
-                      <option value="Completed">✅ Completed</option>
-                      <option value="Delayed">⚠️ Delayed</option>
-                    </select>
-
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="Add status note (optional)"
-                        value={statusNote}
-                        onChange={(e) => setStatusNote(e.target.value)}
-                        className="flex-1 p-2 border border-indigo-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                      <button
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-                        onClick={() => updateDeliveryStatus(selectedStatus, statusNote)}
-                        disabled={!selectedStatus}
-                      >
-                        Update
-                      </button>
-                    </div>
-
-                    <div className="mt-4 flex justify-center">
-                      <button
-                        onClick={() => setShowFinalizeModal(true)}
-                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center"
-                      >
-                        <CheckSquare className="w-4 h-4 mr-2" />
-                        Finalize Delivery
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-indigo-100 pt-3">
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">
-                    Recent Updates
-                  </h3>
-                  <div className="space-y-2 max-h-32 overflow-y-auto">
-                    <div className="text-sm p-2 rounded bg-gray-50">
-                      <p className="text-gray-800 font-medium">
-                        Status changed to: In Transit
-                      </p>
-                      <p className="text-xs text-gray-500">Today at 10:30 AM</p>
-                    </div>
-                    <div className="text-sm p-2 rounded bg-gray-50">
-                      <p className="text-gray-800 font-medium">
-                        Loading completed at warehouse
-                      </p>
-                      <p className="text-xs text-gray-500">Today at 9:15 AM</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Route Checkpoints Card */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center mb-4">
-                <CheckCircle className="w-6 h-6 text-purple-600 mr-3" />
-                <h2 className="text-lg font-bold text-gray-900">
-                  Route Checkpoints
-                </h2>
-              </div>
-
-              {checkpointsForDisplay.length > 0 ? (
-                <div className="space-y-4">
-                  {/* Progress Overview */}
-                  <div className="bg-purple-50 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-purple-700">
-                        Progress
-                      </span>
-                      <span className="text-sm text-purple-600">
-                        {
-                          checkpointsForDisplay.filter((cp) => cp.completed)
-                            .length
-                        }
-                        /{checkpointsForDisplay.length}
-                      </span>
-                    </div>
-                    <div className="w-full bg-purple-200 rounded-full h-2">
-                      <div
-                        className="bg-purple-600 h-2 rounded-full transition-all duration-500"
-                        style={{
-                          width: `${
-                            (checkpointsForDisplay.filter((cp) => cp.completed)
-                              .length /
-                              checkpointsForDisplay.length) *
-                            100
-                          }%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Next Checkpoint Highlight */}
-                  {nextCheckpoint && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <div className="flex items-center mb-2">
-                        <Clock className="w-4 h-4 text-blue-600 mr-2" />
-                        <span className="text-sm font-semibold text-blue-800">
-                          Next Checkpoint
-                        </span>
-                      </div>
-                      <p className="font-bold text-blue-900 text-sm leading-tight">
-                        {typeof nextCheckpoint === "string"
-                          ? nextCheckpoint
-                          : nextCheckpoint?.name ||
-                            nextCheckpoint?.location ||
-                            "Checkpoint"}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Checkpoints List */}
-                  <div className="max-h-[600px] overflow-y-auto space-y-3 pr-2">
-                    {checkpointsForDisplay.map((cp, idx) => (
-                      <div
-                        key={idx}
-                        className={`relative p-4 rounded-lg border transition-all transform hover:scale-[1.01] ${
-                          cp.completed
-                            ? "bg-green-50 border-green-200"
-                            : cp.isCurrent
-                            ? "bg-blue-50 border-blue-200"
-                            : "bg-white border-gray-200"
-                        } hover:shadow-md`}
-                      >
-                        <div className="flex items-start gap-4">
-                          <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold ${
-                              cp.completed
-                                ? "bg-green-500 text-white"
-                                : cp.isCurrent
-                                ? "bg-blue-500 text-white ring-4 ring-blue-100"
-                                : "bg-gray-100 text-gray-500 border-2 border-gray-200"
-                            }`}
-                          >
-                            {cp.completed ? "✓" : idx + 1}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between mb-2">
-                              <p
-                                className={`font-medium text-sm leading-tight ${
-                                  cp.completed
-                                    ? "text-green-800"
-                                    : cp.isCurrent
-                                    ? "text-blue-800"
-                                    : "text-gray-800"
-                                }`}
-                              >
-                                {cp.name}
-                              </p>
-                              <button
-                                onClick={() => {
-                                  setSelectedCheckpoint(cp);
-                                  setCheckpointForm({
-                                    status: cp.completed
-                                      ? "completed"
-                                      : cp.isCurrent
-                                      ? "in_progress"
-                                      : "pending",
-                                    notes: cp.notes || "",
-                                    arrivalTime: cp.arrivalTime || "",
-                                    departureTime: cp.departureTime || "",
-                                    condition: cp.condition || "good",
-                                  });
-                                  setShowCheckpointModal(true);
-                                }}
-                                className={`px-3 py-1 text-xs font-medium rounded-full ml-2 ${
-                                  cp.completed
-                                    ? "bg-green-100 text-green-700 hover:bg-green-200"
-                                    : cp.isCurrent
-                                    ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                                }`}
-                              >
-                                {cp.completed
-                                  ? "View Details"
-                                  : "Update Status"}
-                              </button>
-                            </div>
-
-                            {/* Details as Tags */}
-                            {cp.details && (
-                              <div className="flex flex-wrap gap-1 mb-2">
-                                {cp.details.goodsType && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                    {cp.details.goodsType}
-                                  </span>
-                                )}
-                                {cp.details.weight && (
-                                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    {cp.details.weight}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Instructions */}
-                            {cp.details?.handlingInstructions && (
-                              <p className="text-xs text-gray-600 italic mt-1 leading-tight">
-                                "{cp.details.handlingInstructions}"
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Status Badge */}
-                          {cp.isCurrent && (
-                            <span className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium">
-                              Current
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Navigation className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                  <p className="text-gray-500 mb-2">No checkpoints assigned</p>
-                  <p className="text-xs text-gray-400">
-                    Checkpoints will appear when a route is assigned
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Route Alerts Card */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex items-center mb-4">
-                <AlertTriangle className="w-6 h-6 text-amber-600 mr-3" />
-                <h2 className="text-lg font-bold text-gray-900">
-                  Route Alerts
-                </h2>
-              </div>
-
-              {alerts.length > 0 ? (
-                <div className="space-y-3 max-h-48 overflow-y-auto">
-                  {alerts.slice(0, 4).map((alert, index) => (
-                    <div
-                      key={index}
-                      className={`p-3 rounded-lg border-l-4 ${
-                        alert.severity === "high"
-                          ? "bg-red-50 border-l-red-500"
-                          : alert.severity === "medium"
-                          ? "bg-yellow-50 border-l-yellow-500"
-                          : "bg-blue-50 border-l-blue-500"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <p className="text-sm text-gray-800 flex-1 leading-tight">
-                          {alert.message}
-                        </p>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ml-2 flex-shrink-0 ${
-                            alert.severity === "high"
-                              ? "bg-red-100 text-red-800"
-                              : alert.severity === "medium"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
-                          {alert.severity?.toUpperCase()}
-                        </span>
-                      </div>
-                      {alert.timestamp && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(alert.timestamp).toLocaleTimeString()}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-6">
-                  <CheckCircle className="w-10 h-10 mx-auto text-green-400 mb-2" />
-                  <p className="text-gray-500 text-sm">No active alerts</p>
-                  <p className="text-xs text-gray-400">
-                    All systems operational
-                  </p>
-                </div>
-              )}
-            </div>
-
+          <div className="space-y-8">
             {/* Truck Details Card */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
               <div className="flex items-center mb-4">
                 <Truck className="w-6 h-6 text-gray-600 mr-3" />
                 <h2 className="text-lg font-bold text-gray-900">
@@ -1894,6 +1589,89 @@ function TruckDetails() {
                 </div>
               </div>
             </div>
+
+<UpdateCheckpoints blockchainOrderId={blockchainOrderId} />
+
+            {/* Route Alerts Card */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center mb-4">
+                <AlertTriangle className="w-6 h-6 text-amber-600 mr-3" />
+                <h2 className="text-lg font-bold text-gray-900">
+                  Route Alerts
+                </h2>
+              </div>
+
+              {alerts.length > 0 ? (
+                <div className="space-y-3 max-h-48 overflow-y-auto">
+                  {alerts.slice(0, 4).map((alert, index) => (
+                    <div
+                      key={index}
+                      className={`p-3 rounded-lg border-l-4 ${
+                        alert.severity === "high"
+                          ? "bg-red-50 border-l-red-500"
+                          : alert.severity === "medium"
+                          ? "bg-yellow-50 border-l-yellow-500"
+                          : "bg-blue-50 border-l-blue-500"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <p className="text-sm text-gray-800 flex-1 leading-tight">
+                          {alert.message}
+                        </p>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ml-2 flex-shrink-0 ${
+                            alert.severity === "high"
+                              ? "bg-red-100 text-red-800"
+                              : alert.severity === "medium"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-blue-100 text-blue-800"
+                          }`}
+                        >
+                          {alert.severity?.toUpperCase()}
+                        </span>
+                      </div>
+                      {alert.timestamp && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(alert.timestamp).toLocaleTimeString()}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-6">
+                  <CheckCircle className="w-10 h-10 mx-auto text-green-400 mb-2" />
+                  <p className="text-gray-500 text-sm">No active alerts</p>
+                  <p className="text-xs text-gray-400">
+                    All systems operational
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {blockchainOrderId > 0 && (
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-100 rounded-3xl shadow-2xl p-8 border border-indigo-200">
+                {/* Header */}
+                <div className="flex items-center mb-8 border-b-2 pb-4 border-indigo-200">
+                  <Airplay className="w-8 h-8 text-indigo-600 mr-3 drop-shadow" />
+                  <h2 className="text-2xl font-extrabold text-indigo-900 tracking-tight">
+                    Delivery Management
+                  </h2>
+                </div>
+
+                {/* Grid layout */}
+                <div className=" flex flex-col gap-y-4">
+                  <div>
+                    <UpdateDeliveryStatus
+                      blockchainOrderId={blockchainOrderId}
+                    />
+                  </div>
+                  <div>
+                    <FinalizeDelivery blockchainOrderId={blockchainOrderId} />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -2286,7 +2064,9 @@ function TruckDetails() {
                     onClick={() => {
                       updateCheckpointStatus(
                         0, // first truck in the array
-                        selectedTruck.trucks[0].checkpoints.indexOf(selectedCheckpoint),
+                        selectedTruck.trucks[0].checkpoints.indexOf(
+                          selectedCheckpoint
+                        ),
                         checkpointForm.status,
                         checkpointForm.notes
                       );
@@ -2401,7 +2181,6 @@ function TruckDetails() {
           </div>
         </div>
       )}
-
       {showIncomingAlerts && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg w-96 max-w-md max-h-96 flex flex-col">

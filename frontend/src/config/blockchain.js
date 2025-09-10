@@ -1,18 +1,17 @@
-// backend/config/blockchain.js
+// frontend/config/blockchain.js
 import { ThirdwebSDK } from "@thirdweb-dev/sdk";
-import dotenv from "dotenv";
-dotenv.config();
 
-// Initialize SDK with Thirdweb Secret Key
-const sdk = new ThirdwebSDK("sepolia", {
-  secretKey: process.env.THIRDWEB_SECRET_KEY,
-});
+// ⚡ Initialize SDK with the browser wallet (MetaMask / WalletConnect)
+if (!window.ethereum) {
+  throw new Error("No injected Ethereum provider found. Please install MetaMask.");
+}
+const sdk = new ThirdwebSDK(window.ethereum);
 
-// Load contracts
-const DELIVERY_ADDRESS = process.env.DELIVERY_ADDRESS;
-const POD_ADDRESS = process.env.POD_ADDRESS;
-const ESCROW_ADDRESS = process.env.ESCROW_ADDRESS;
-const ACCESS_ADDRESS = process.env.ACCESS_ADDRESS;
+// 📌 Load contract instances
+const DELIVERY_ADDRESS = import.meta.env.VITE_DELIVERY_ADDRESS;
+const POD_ADDRESS = import.meta.env.VITE_POD_ADDRESS;
+const ESCROW_ADDRESS = import.meta.env.VITE_ESCROW_ADDRESS;
+const ACCESS_ADDRESS = import.meta.env.VITE_ACCESS_ADDRESS;
 
 export async function loadContracts() {
   const deliveryContract = await sdk.getContract(DELIVERY_ADDRESS);
@@ -58,7 +57,11 @@ export async function getAssignedCarrier(orderId) {
 
 export async function createEscrowETH(orderId, payee, amount) {
   const { escrowContract } = await loadContracts();
-  return await escrowContract.call("createEscrowETH", [orderId, payee], { value: amount });
+  return await escrowContract.call(
+    "createEscrowETH",
+    [orderId, payee],
+    { value: amount }
+  );
 }
 
 export async function createEscrowERC20(orderId, payee, token, amount) {
@@ -100,7 +103,6 @@ export async function finalizePoD(orderId, payee, deadline, sig) {
   return await podContract.call("finalizeWithSig", [orderId, payee, deadline, v, r, s]);
 }
 
-
 export async function isFinalized(orderId) {
   const { podContract } = await loadContracts();
   return await podContract.call("isFinalized", [orderId]);
@@ -128,5 +130,5 @@ export async function hasRole(account, role) {
   return await accessContract.call("hasRole", [account, role]);
 }
 
-// Export sdk for low-level access if needed
+// Export sdk if you need direct access
 export { sdk };
