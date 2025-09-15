@@ -1,5 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Truck, MapPin, Building, Send, Loader2, X, Map, Navigation } from 'lucide-react';
+import { db } from '../../config/firebase.js';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+// Default data for the application (sample mode)
+const defaultData = {
+  vehicles: [
+    { id: 'truck_1', capacity: 1000, type: 'small', max_shift_hours: 8, current_location: 'depot_1' },
+    { id: 'truck_2', capacity: 1500, type: 'medium', max_shift_hours: 10, current_location: 'depot_2' },
+    { id: 'truck_3', capacity: 1200, type: 'medium', max_shift_hours: 9, current_location: 'depot_1' }
+  ],
+  depots: [
+    { id: 'depot_1', lat: 12.9716, lon: 77.5946 },
+    { id: 'depot_2', lat: 12.9350, lon: 77.6100 }
+  ],
+  locations: [
+    { id: 'loc_1', lat: 12.9352, lon: 77.6245, demand: 300, priority: 1, time_window: [8, 12] },
+    { id: 'loc_2', lat: 12.9878, lon: 77.5966, demand: 200, priority: 2, time_window: [10, 15] },
+    { id: 'loc_3', lat: 12.9200, lon: 77.6100, demand: 400, priority: 1, time_window: [9, 14] },
+    { id: 'loc_5', lat: 12.9600, lon: 77.6000, demand: 500, priority: 2, time_window: [8, 11] },
+    { id: 'loc_8', lat: 12.9700, lon: 77.6200, demand: 300, priority: 1, time_window: [9, 13] }
+  ]
+};
 
 // Enhanced LocationSearchComponent with real Google Places API integration
 const LocationSearchComponent = ({ placeholder, onLocationSelect, initialValue, label }) => {
@@ -9,6 +30,10 @@ const LocationSearchComponent = ({ placeholder, onLocationSelect, initialValue, 
   const inputRef = useRef(null);
   const autocompleteService = useRef(null);
   const placesService = useRef(null);
+
+  useEffect(() => {
+    setSearchValue(initialValue || '');
+  }, [initialValue]);
 
   useEffect(() => {
     if (window.google && window.google.maps) {
@@ -125,20 +150,30 @@ const LocationSearchComponent = ({ placeholder, onLocationSelect, initialValue, 
 };
 
 // Google Maps component
-const GoogleMap = ({ results, depots, locations }) => {
+const GoogleMap = ({ results, depots, locations, vehicles }) => {
   const mapRef = useRef(null);
   const [map, setMap] = useState(null);
   const [directionsService, setDirectionsService] = useState(null);
   const [directionsRenderers, setDirectionsRenderers] = useState([]);
+  const [isLoadingRoutes, setIsLoadingRoutes] = useState(false);
+  const [routeErrors, setRouteErrors] = useState([]);
 
   useEffect(() => {
     // Load Google Maps Script
     if (!window.google) {
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places`;
+      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+      if (!apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY') {
+        console.error('Google Maps API key not configured. Please set VITE_GOOGLE_MAPS_API_KEY in your .env file');
+        return;
+      }
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
       script.async = true;
       script.defer = true;
       script.onload = initializeMap;
+      script.onerror = () => {
+        console.error('Failed to load Google Maps API');
+      };
       document.head.appendChild(script);
     } else {
       initializeMap();
@@ -156,7 +191,14 @@ const GoogleMap = ({ results, depots, locations }) => {
       const mapInstance = new window.google.maps.Map(mapRef.current, {
         zoom: 12,
         center: { lat: 12.9716, lng: 77.5946 }, // Bangalore center
-        mapTypeId: 'roadmap'
+        mapTypeId: 'roadmap',
+        gestureHandling: 'cooperative',
+        zoomControl: true,
+        mapTypeControl: true,
+        scaleControl: true,
+        streetViewControl: true,
+        rotateControl: true,
+        fullscreenControl: true
       });
 
       setMap(mapInstance);
@@ -165,7 +207,22 @@ const GoogleMap = ({ results, depots, locations }) => {
   };
 
   const displayRoutes = () => {
-    if (!map || !results || !directionsService) return;
+    if (!map || !results || !directionsService) {
+      console.log('displayRoutes called but missing requirements:', { 
+        map: !!map, 
+        results: !!results, 
+        directionsService: !!directionsService 
+      });
+      return;
+    }
+
+    console.log('=== STARTING ROUTE DISPLAY ===');
+    console.log('Results:', results);
+    console.log('Depots:', depots);
+    console.log('Locations:', locations);
+
+    setIsLoadingRoutes(true);
+    setRouteErrors([]);
 
     // Clear existing routes
     directionsRenderers.forEach(renderer => renderer.setMap(null));
@@ -174,28 +231,120 @@ const GoogleMap = ({ results, depots, locations }) => {
     const colors = ['#FF0000', '#0000FF', '#00FF00', '#FF00FF', '#FFA500', '#800080'];
     const newRenderers = [];
 
+    // Get the correct depots and locations data
+    const currentDepots = depots.length > 0 ? depots : defaultData.depots;
+    const currentLocations = locations.length > 0 ? locations : defaultData.locations;
+
+    console.log('Using depots:', currentDepots);
+    console.log('Using locations:', currentLocations);
+    console.log('Assignments:', results.assignments);
+
+    const routePromises = [];
+
     Object.entries(results.assignments).forEach(([truckId, assignedLocations], index) => {
       if (assignedLocations.length === 0) return;
 
       const truckInfo = results.per_vehicle_summary[truckId];
-      const startingDepot = depots.find(depot => depot.id === truckInfo.starting_depot);
-      
-      if (!startingDepot) return;
+      if (!truckInfo) {
+        console.warn(`No truck info found for ${truckId}`);
+        return;
+      }
 
-      // Create waypoints for the route
+      console.log(`Processing ${truckId}:`, truckInfo);
+
+      // Find starting depot using multiple strategies
+      let startingDepot = null;
+      
+      // Strategy 1: Use starting_depot from backend response
+      if (truckInfo.starting_depot) {
+        startingDepot = currentDepots.find(depot => depot.id === truckInfo.starting_depot);
+        console.log(`Found depot via starting_depot: ${truckInfo.starting_depot}`, startingDepot);
+      }
+      
+      // Strategy 2: Use starting_location coordinates if depot not found
+      if (!startingDepot && truckInfo.starting_location) {
+        startingDepot = {
+          id: `depot_${truckId}`,
+          lat: truckInfo.starting_location.lat,
+          lon: truckInfo.starting_location.lon
+        };
+        console.log(`Created depot from starting_location:`, startingDepot);
+      }
+      
+      // Strategy 3: Find depot by truck's current_location
+      if (!startingDepot) {
+        // Look up the truck in vehicles to find its current_location
+        const vehicleData = vehicles.find(v => v.id === truckId) || defaultData.vehicles.find(v => v.id === truckId);
+        if (vehicleData && vehicleData.current_location) {
+          startingDepot = currentDepots.find(depot => depot.id === vehicleData.current_location);
+          console.log(`Found depot via vehicle current_location: ${vehicleData.current_location}`, startingDepot);
+        }
+      }
+      
+      // Strategy 4: Use the first depot as fallback
+      if (!startingDepot) {
+        startingDepot = currentDepots[0];
+        console.log(`Using first depot as fallback:`, startingDepot);
+      }
+
+      if (!startingDepot) {
+        console.warn(`No starting depot found for ${truckId}`);
+        return;
+      }
+
+      // Create waypoints for the route - these are the delivery locations
       const waypoints = assignedLocations.map(locId => {
-        const location = locations.find(loc => loc.id === locId);
+        const location = currentLocations.find(loc => loc.id === locId);
+        if (!location) {
+          console.warn(`Location ${locId} not found`);
+          return null;
+        }
         return {
-          location: { lat: location.lat, lng: location.lon },
+          location: { lat: location.lat, lng: location.lon || location.lng },
           stopover: true
         };
       }).filter(Boolean);
 
-      if (waypoints.length === 0) return;
+      if (waypoints.length === 0) {
+        console.warn(`No valid waypoints for ${truckId}`);
+        return;
+      }
 
-      const start = { lat: startingDepot.lat, lng: startingDepot.lon };
-      const end = waypoints[waypoints.length - 1].location;
-      const intermediateWaypoints = waypoints.slice(0, -1);
+      const start = { lat: startingDepot.lat, lng: startingDepot.lon || startingDepot.lng };
+      
+      console.log(`Route for ${truckId}:`, {
+        startingDepot: startingDepot.id,
+        startCoordinates: start,
+        assignedLocations,
+        waypoints: waypoints.map(w => ({ location: w.location, id: assignedLocations[waypoints.indexOf(w)] }))
+      });
+      
+      // Handle different route scenarios
+      let routeRequest;
+      if (waypoints.length === 1) {
+        // Direct route from depot to single location
+        routeRequest = {
+          origin: start,
+          destination: waypoints[0].location,
+          travelMode: window.google.maps.TravelMode.DRIVING,
+          optimizeWaypoints: false,
+          avoidHighways: false,
+          avoidTolls: false
+        };
+      } else {
+        // Multi-stop route
+        const end = waypoints[waypoints.length - 1].location;
+        const intermediateWaypoints = waypoints.slice(0, -1);
+        routeRequest = {
+          origin: start,
+          destination: end,
+          waypoints: intermediateWaypoints,
+          optimizeWaypoints: true, // Let Google optimize the route for shortest path
+          travelMode: window.google.maps.TravelMode.DRIVING,
+          avoidHighways: false,
+          avoidTolls: false
+        };
+      }
 
       const renderer = new window.google.maps.DirectionsRenderer({
         suppressMarkers: false,
@@ -209,61 +358,158 @@ const GoogleMap = ({ results, depots, locations }) => {
       renderer.setMap(map);
       newRenderers.push(renderer);
 
-      // Request directions
-      directionsService.route({
-        origin: start,
-        destination: end,
-        waypoints: intermediateWaypoints,
-        optimizeWaypoints: false,
-        travelMode: window.google.maps.TravelMode.DRIVING
-      }, (result, status) => {
-        if (status === 'OK') {
-          renderer.setDirections(result);
+      // Create a promise for each route request
+      const routePromise = new Promise((resolve) => {
+        // Request directions for the shortest path
+        console.log(`Creating route for ${truckId}:`, {
+          start,
+          routeRequest,
+          assignedLocations
+        });
+
+        directionsService.route(routeRequest, (result, status) => {
+          console.log(`🗺️ Route response for ${truckId}:`, status);
+          if (result) {
+            console.log(`Route has ${result.routes?.length || 0} routes with ${result.routes?.[0]?.legs?.length || 0} legs`);
+          }
           
-          // Add custom markers for trucks
-          const truckMarker = new window.google.maps.Marker({
-            position: start,
-            map: map,
-            title: `${truckId} - ${truckInfo.vehicle_type}`,
-            icon: {
-              url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-                <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                  <rect width="32" height="32" fill="${colors[index % colors.length]}" rx="4"/>
-                  <text x="16" y="20" text-anchor="middle" fill="white" font-size="10" font-weight="bold">🚛</text>
-                </svg>
-              `),
-              scaledSize: new window.google.maps.Size(32, 32)
+          if (status === 'OK') {
+            console.log(`✅ Route created successfully for ${truckId}`);
+            renderer.setDirections(result);
+            
+            // Log route distance information
+            const route = result.routes[0];
+            if (route) {
+              const totalDistance = route.legs.reduce((total, leg) => total + leg.distance.value, 0) / 1000;
+              console.log(`📏 Route distance for ${truckId}: ${totalDistance} km`);
+              console.log(`🛣️ Route path for ${truckId}:`, route.legs.map(leg => ({
+                from: leg.start_address,
+                to: leg.end_address,
+                distance: leg.distance.text
+              })));
             }
-          });
+            
+            // Add custom markers for trucks
+            const truckMarker = new window.google.maps.Marker({
+              position: start,
+              map: map,
+              title: `${truckId} - ${truckInfo.vehicle_type}`,
+              icon: {
+                url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                  <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="32" height="32" fill="${colors[index % colors.length]}" rx="4"/>
+                    <text x="16" y="20" text-anchor="middle" fill="white" font-size="10" font-weight="bold">🚛</text>
+                  </svg>
+                `),
+                scaledSize: new window.google.maps.Size(32, 32)
+              }
+            });
 
-          const infoWindow = new window.google.maps.InfoWindow({
-            content: `
-              <div class="p-3">
-                <h3 class="font-bold text-blue-700">${truckId}</h3>
-                <p><strong>Type:</strong> ${truckInfo.vehicle_type}</p>
-                <p><strong>Capacity:</strong> ${truckInfo.capacity}</p>
-                <p><strong>Stops:</strong> ${truckInfo.stops}</p>
-                <p><strong>Total Demand:</strong> ${truckInfo.total_demand}</p>
-                <p><strong>Distance:</strong> ${truckInfo.approx_distance_km?.toFixed(2)} km</p>
-                <p><strong>Capacity Used:</strong> ${truckInfo.capacity_utilization?.toFixed(1)}%</p>
-                <p><strong>Route:</strong> ${assignedLocations.join(' → ')}</p>
-              </div>
-            `
-          });
+            const infoWindow = new window.google.maps.InfoWindow({
+              content: `
+                <div class="p-3">
+                  <h3 class="font-bold text-blue-700">${truckId}</h3>
+                  <p><strong>Type:</strong> ${truckInfo.vehicle_type}</p>
+                  <p><strong>Capacity:</strong> ${truckInfo.capacity}</p>
+                  <p><strong>Stops:</strong> ${truckInfo.stops}</p>
+                  <p><strong>Total Demand:</strong> ${truckInfo.total_demand}</p>
+                  <p><strong>Distance:</strong> ${truckInfo.approx_distance_km?.toFixed(2)} km</p>
+                  <p><strong>Capacity Used:</strong> ${truckInfo.capacity_utilization?.toFixed(1)}%</p>
+                  <p><strong>Route:</strong> ${assignedLocations.join(' → ')}</p>
+                </div>
+              `
+            });
 
-          truckMarker.addListener('click', () => {
-            infoWindow.open(map, truckMarker);
-          });
-        }
+            truckMarker.addListener('click', () => {
+              infoWindow.open(map, truckMarker);
+            });
+            
+            resolve({ success: true, truckId });
+          } else {
+            console.error(`Directions request failed for ${truckId} due to:`, status);
+            setRouteErrors(prev => [...prev, { truckId, status, error: `Failed to create route: ${status}` }]);
+            
+            // Fallback: draw a simple polyline if directions fail
+            const routeCoordinates = [start];
+            assignedLocations.forEach(locId => {
+              const location = currentLocations.find(loc => loc.id === locId);
+              if (location) {
+                routeCoordinates.push({ lat: location.lat, lng: location.lon });
+              }
+            });
+            
+            const polyline = new window.google.maps.Polyline({
+              path: routeCoordinates,
+              geodesic: true,
+              strokeColor: colors[index % colors.length],
+              strokeOpacity: 0.6,
+              strokeWeight: 3
+            });
+            polyline.setMap(map);
+            
+            // Still add truck marker even if route fails
+            const truckMarker = new window.google.maps.Marker({
+              position: start,
+              map: map,
+              title: `${truckId} - ${truckInfo.vehicle_type} (Route Failed)`,
+              icon: {
+                url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                  <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="32" height="32" fill="${colors[index % colors.length]}" rx="4"/>
+                    <text x="16" y="20" text-anchor="middle" fill="white" font-size="10" font-weight="bold">🚛</text>
+                  </svg>
+                `),
+                scaledSize: new window.google.maps.Size(32, 32)
+              }
+            });
+            
+            resolve({ success: false, truckId, error: status });
+          }
+        });
       });
+
+      routePromises.push(routePromise);
+    });
+
+    // Wait for all routes to complete
+    Promise.all(routePromises).then(() => {
+      setIsLoadingRoutes(false);
     });
 
     setDirectionsRenderers(newRenderers);
 
+    // Adjust map bounds to fit all markers and routes
+    if (currentDepots.length > 0 || currentLocations.length > 0) {
+      const bounds = new window.google.maps.LatLngBounds();
+      
+      // Add depot bounds
+      currentDepots.forEach(depot => {
+        const coord = new window.google.maps.LatLng(depot.lat, depot.lon || depot.lng);
+        bounds.extend(coord);
+        console.log(`Added depot ${depot.id} to bounds:`, depot.lat, depot.lon || depot.lng);
+      });
+      
+      // Add location bounds
+      currentLocations.forEach(location => {
+        const coord = new window.google.maps.LatLng(location.lat, location.lon || location.lng);
+        bounds.extend(coord);
+        console.log(`Added location ${location.id} to bounds:`, location.lat, location.lon || location.lng);
+      });
+      
+      console.log('Fitting map to bounds:', bounds);
+      map.fitBounds(bounds);
+      
+      // Ensure minimum zoom level
+      const listener = window.google.maps.event.addListener(map, "idle", function() {
+        if (map.getZoom() > 15) map.setZoom(15);
+        window.google.maps.event.removeListener(listener);
+      });
+    }
+
     // Add depot markers
-    depots.forEach((depot, index) => {
+    currentDepots.forEach((depot, index) => {
       const marker = new window.google.maps.Marker({
-        position: { lat: depot.lat, lng: depot.lon },
+        position: { lat: depot.lat, lng: depot.lon || depot.lng },
         map: map,
         title: `${depot.id} - Depot`,
         icon: {
@@ -293,14 +539,14 @@ const GoogleMap = ({ results, depots, locations }) => {
     });
 
     // Add location markers
-    locations.forEach((location, index) => {
+    currentLocations.forEach((location, index) => {
       const assignedTruck = Object.entries(results.assignments).find(([truck, locs]) => 
         locs.includes(location.id)
       );
       const truckIndex = assignedTruck ? Object.keys(results.assignments).indexOf(assignedTruck[0]) : 0;
       
       const marker = new window.google.maps.Marker({
-        position: { lat: location.lat, lng: location.lon },
+        position: { lat: location.lat, lng: location.lon || location.lng },
         map: map,
         title: `${location.id} - Delivery Location`,
         icon: {
@@ -345,16 +591,77 @@ const GoogleMap = ({ results, depots, locations }) => {
   }
 
   return (
-    <div className="h-96 w-full">
+    <div className="h-96 w-full relative">
       <div ref={mapRef} className="w-full h-full rounded-lg border border-gray-300" />
+      
+      {/* Loading indicator */}
+      {isLoadingRoutes && (
+        <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-3 flex items-center gap-2">
+          <Loader2 className="animate-spin text-blue-600" size={20} />
+          <span className="text-sm text-gray-700">Calculating routes...</span>
+        </div>
+      )}
+      
+      {/* Route errors */}
+      {routeErrors.length > 0 && (
+        <div className="absolute bottom-4 left-4 bg-red-50 border border-red-200 rounded-lg p-3 max-w-sm">
+          <h4 className="text-sm font-medium text-red-800 mb-1">Route Calculation Issues:</h4>
+          {routeErrors.map((error, index) => (
+            <p key={index} className="text-xs text-red-600">
+              {error.truckId}: {error.error}
+            </p>
+          ))}
+        </div>
+      )}
+      
+      {/* Debug Route Test Button */}
+      {window.google && directionsService && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
+          <button
+            onClick={() => {
+              console.log('Testing simple route...');
+              const testRenderer = new window.google.maps.DirectionsRenderer({
+                polylineOptions: {
+                  strokeColor: '#FF0000',
+                  strokeWeight: 5,
+                  strokeOpacity: 0.8
+                }
+              });
+              testRenderer.setMap(map);
+              
+              directionsService.route({
+                origin: { lat: 12.9716, lng: 77.5946 },
+                destination: { lat: 12.9352, lng: 77.6245 },
+                travelMode: window.google.maps.TravelMode.DRIVING
+              }, (result, status) => {
+                console.log('Test route result:', status, result);
+                if (status === 'OK') {
+                  testRenderer.setDirections(result);
+                }
+              });
+            }}
+            className="bg-yellow-500 text-white px-3 py-1 rounded text-xs"
+          >
+            See Routes
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
 const VehicleRoutingOptimizer = () => {
+  // Mode toggle state
+  const [isLiveDataMode, setIsLiveDataMode] = useState(false);
+  
+  // Assignment rows
   const [vehicles, setVehicles] = useState([]);
+  // Always use sample depots
   const [depots, setDepots] = useState([]);
+  // Delivery locations
   const [locations, setLocations] = useState([]);
+  // Live drivers list
+  const [drivers, setDrivers] = useState([]);
   const [constraints, setConstraints] = useState({
     max_stops_per_vehicle: 4,
     max_distance_per_vehicle: 20.0,
@@ -364,38 +671,18 @@ const VehicleRoutingOptimizer = () => {
   });
 
   const quantumServerUrl = "http://localhost:8000";
-  const shots = 300;
+  const shots = 600;
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
 
-  // Updated default data to match your exact requirements
-  const defaultData = {
-    vehicles: [
-      {"id": "truck_1", "capacity": 1000, "type": "small", "max_shift_hours": 8, "current_location": "depot_1"},
-      {"id": "truck_2", "capacity": 1500, "type": "medium", "max_shift_hours": 10, "current_location": "depot_2"},
-      {"id": "truck_3", "capacity": 1200, "type": "medium", "max_shift_hours": 9, "current_location": "depot_1"}
-    ],
-    depots: [
-      {"id": "depot_1", "lat": 12.9716, "lon": 77.5946},
-      {"id": "depot_2", "lat": 12.9350, "lon": 77.6100}
-    ],
-    locations: [
-      {"id": "loc_1", "lat": 12.9352, "lon": 77.6245, "demand": 300, "priority": 1, "time_window": [8, 12]},
-      {"id": "loc_2", "lat": 12.9878, "lon": 77.5966, "demand": 200, "priority": 2, "time_window": [10, 15]},
-      {"id": "loc_3", "lat": 12.9200, "lon": 77.6100, "demand": 400, "priority": 1, "time_window": [9, 14]},
-      {"id": "loc_5", "lat": 12.9600, "lon": 77.6000, "demand": 500, "priority": 2, "time_window": [8, 11]},
-      {"id": "loc_8", "lat": 12.9700, "lon": 77.6200, "demand": 300, "priority": 1, "time_window": [9, 13]}
-    ]
-  };
-
   const addVehicle = () => {
     const newVehicle = {
-      id: `truck_${vehicles.length + 1}`,
+      id: `new_vehicle_${vehicles.length + 1}`,
       capacity: 1000,
       type: 'medium',
       max_shift_hours: 8,
-      current_location: depots.length > 0 ? depots[0].id : ''
+      current_location: ''
     };
     setVehicles([...vehicles, newVehicle]);
   };
@@ -534,6 +821,53 @@ const VehicleRoutingOptimizer = () => {
     setLocations(locationsWithAddresses);
   };
 
+  // Load live data from Firebase when in Live Data Mode
+  const loadLiveData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch drivers
+      const driversCol = collection(db, 'driverProfiles');
+      const driversSnap = await getDocs(driversCol);
+      const liveDrivers = driversSnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          uid: doc.id,
+          employeeId: data.professionalInfo?.employeeId || doc.id,
+          truckId: data.professionalInfo?.truckId,
+          currentLocation: data.truckInfo?.currentLocation || data.professionalInfo?.currentAssignment || ''
+        };
+      });
+      setDrivers(liveDrivers);
+
+    // Fetch delivery locations (tasks) - but don't set them yet, will be populated when driver is selected
+    const locCol = collection(db, 'locations');
+    const locSnap = await getDocs(locCol);
+    const liveLocations = locSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Don't set locations yet - will be populated based on driver selection
+    
+      // Start with empty lists in live mode
+      setVehicles([]);
+      setLocations([]);
+      setDepots([]);
+    } catch (err) {
+      console.error('Error fetching live data:', err);
+      setError('Error fetching live data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+// Effect to load live data on mode change
+useEffect(() => {
+  if (isLiveDataMode) {
+    loadLiveData();
+  } else {
+    // Load sample data automatically on mode switch
+    loadDefaultData();
+  }
+}, [isLiveDataMode]);
+
   const handleOptimize = async () => {
     setLoading(true);
     setError(null);
@@ -623,6 +957,7 @@ const VehicleRoutingOptimizer = () => {
             results={results}
             depots={depots.length > 0 ? depots : defaultData.depots}
             locations={locations.length > 0 ? locations : defaultData.locations}
+            vehicles={vehicles.length > 0 ? vehicles : defaultData.vehicles}
           />
         </div>
         
@@ -684,6 +1019,69 @@ const VehicleRoutingOptimizer = () => {
     );
   };
 
+  // Handle live driver selection to auto-populate depot and delivery locations
+  const handleDriverSelect = async (index, employeeId) => {
+    const updatedVehicles = [...vehicles];
+    const vehicle = { ...updatedVehicles[index], id: employeeId };
+  
+    if (isLiveDataMode) {
+      const driver = drivers.find(d => d.employeeId === employeeId);
+      if (driver) {
+        try {
+          const resCol = collection(db, 'truckReservations');
+          const q = query(resCol);
+          const resSnap = await getDocs(q);
+          let foundReservation = null;
+  
+          for (const doc of resSnap.docs) {
+            const data = doc.data();
+            if (data.trucks && Array.isArray(data.trucks)) {
+              const truck = data.trucks.find(t => t.assignedDriver?.id === driver.uid);
+              if (truck) {
+                foundReservation = truck;
+                break;
+              }
+            }
+          }
+  
+          if (foundReservation) {
+            const { pickupLocationData, dropLocationData } = foundReservation;
+  
+            if (pickupLocationData?.coordinates) {
+              const newDepot = {
+                id: `depot_${driver.employeeId}_${Date.now()}`,
+                lat: pickupLocationData.coordinates.lat,
+                lon: pickupLocationData.coordinates.lng,
+                address: pickupLocationData.address || 'N/A',
+                placeId: pickupLocationData.placeId || `depot_${Date.now()}`
+              };
+              setDepots(prev => [...prev, newDepot]);
+              vehicle.current_location = newDepot.id;
+            }
+  
+            if (dropLocationData?.coordinates) {
+              const newLocation = {
+                id: `loc_${driver.employeeId}_${Date.now()}`,
+                lat: dropLocationData.coordinates.lat,
+                lon: dropLocationData.coordinates.lng,
+                demand: 100,
+                priority: 1,
+                time_window: [8, 18],
+                address: dropLocationData.address || 'N/A',
+                placeId: dropLocationData.placeId || `loc_${Date.now()}`
+              };
+              setLocations(prev => [...prev, newLocation]);
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching reservation data:', err);
+        }
+      }
+    }
+    updatedVehicles[index] = vehicle;
+    setVehicles(updatedVehicles);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto p-4">
@@ -691,15 +1089,53 @@ const VehicleRoutingOptimizer = () => {
           <h1 className="text-3xl font-bold text-[#020073] mb-2 text-center">Vehicle Routing Optimizer</h1>
           <p className="text-gray-600 text-center mb-6">Optimize delivery routes using quantum computing algorithms with Google Maps integration</p>
           
-          {/* Quick Actions */}
-          <div className="mb-6 flex flex-wrap gap-3 justify-center">
-            <button
-              onClick={loadDefaultData}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
-            >
-              Load Sample Data
-            </button>
+          {/* Mode Toggle */}
+          <div className="mb-6 flex justify-center">
+            <div className="bg-gray-100 p-1 rounded-lg inline-flex">
+              <button
+                onClick={() => setIsLiveDataMode(false)}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  !isLiveDataMode 
+                    ? 'bg-white text-[#020073] shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Sample Data Mode
+              </button>
+              <button
+                onClick={() => setIsLiveDataMode(true)}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                  isLiveDataMode 
+                    ? 'bg-white text-[#020073] shadow-sm' 
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                Live Data Mode
+              </button>
+            </div>
           </div>
+
+          {/* Mode Description */}
+          <div className="mb-6 text-center">
+            <p className="text-sm text-gray-600">
+              {isLiveDataMode 
+                ? "Fetch registered drivers and vehicles from Firebase database"
+                : "Use predefined sample data for testing and demonstration"
+              }
+            </p>
+          </div>
+          
+          {/* Quick Actions */}
+          {!isLiveDataMode && (
+            <div className="mb-6 flex flex-wrap gap-3 justify-center">
+              <button
+                onClick={loadDefaultData}
+                className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+              >
+                Load Sample Data
+              </button>
+            </div>
+          )}
 
           {/* Vehicles Section */}
           <div className="mb-6">
@@ -720,7 +1156,7 @@ const VehicleRoutingOptimizer = () => {
             {vehicles.map((vehicle, index) => (
               <div key={index} className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200">
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-medium text-gray-700">Vehicle {index + 1}</h3>
+                  <h3 className="font-medium text-gray-700">Assignment {index + 1}</h3>
                   <button
                     onClick={() => removeItem(index, 'vehicle')}
                     className="text-red-500 hover:text-red-700"
@@ -730,14 +1166,22 @@ const VehicleRoutingOptimizer = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Vehicle ID</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., truck_1"
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Driver</label>
+                    <select
                       value={vehicle.id}
-                      onChange={(e) => updateVehicle(index, 'id', e.target.value)}
+                      onChange={(e) => handleDriverSelect(index, e.target.value)}
                       className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-[#020073] focus:border-[#020073]"
-                    />
+                    >
+                      <option value="">Select Driver</option>
+                      {isLiveDataMode
+                        ? drivers.map((d) => (
+                            <option key={d.uid} value={d.employeeId}>{d.employeeId}</option>
+                          ))
+                        : defaultData.vehicles.map((v) => (
+                            <option key={v.id} value={v.id}>{v.id}</option>
+                          ))
+                      }
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Capacity</label>
