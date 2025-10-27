@@ -4,7 +4,7 @@ IndiFleet is a comprehensive fleet management platform that leverages quantum co
 
 ## 🚀 Features
 
-- **Quantum-Optimized Routing**: Uses Cirq quantum circuits to solve vehicle routing problems with enhanced efficiency
+- **Quantum-Optimized Routing**: Uses Qiskit quantum circuits to solve vehicle routing problems with enhanced efficiency
 - **Blockchain Integration**: Smart contracts for secure delivery tracking and escrow payments
 - **Real-time GPS Tracking**: Google Maps integration for live fleet monitoring
 - **Interactive Dashboard**: React-based frontend with charts and analytics for truck drivers and postal services
@@ -38,7 +38,7 @@ This is a monorepo containing four main components:
   - Rate limiting and CORS support
 
 ### Quantum Engine (`quantum/`)
-- **Technology**: Python + Cirq + NumPy + Pandas
+- **Technology**: Python + Qiskit + NumPy + Pandas
 - **Purpose**: Quantum computing for advanced routing optimization
 - **Key Features**:
   - Quantum circuit-based VRP solver using angle encoding
@@ -133,7 +133,7 @@ This is a monorepo containing four main components:
 
 ### Quantum
 - Python 3.8+
-- Cirq for quantum computing
+- Qiskit for quantum computing
 - NumPy and Pandas for data processing
 - Matplotlib for visualization
 - Scikit-learn for preprocessing
@@ -162,7 +162,7 @@ This is a monorepo containing four main components:
 │   └── api.js
 ├── quantum/               # Python quantum engine
 │   ├── optimizer.py       # Main optimization logic
-│   ├── quantum_layer.py   # Cirq circuits
+│   ├── quantum_layer.py   # Qiskit circuits
 │   ├── constraints_layer.py # Constraint handling
 │   └── visualization.py   # Plotting utilities
 ├── fleet/                 # Solidity smart contracts
@@ -226,7 +226,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- Google for Cirq, AI APIs, and Maps
+- Google for Qiskit, AI APIs, and Maps
 - Ethereum community for blockchain tools
 - Open source contributors
 - Quantum computing research community</content>
