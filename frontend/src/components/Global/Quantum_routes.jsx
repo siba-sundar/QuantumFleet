@@ -916,6 +916,8 @@ useEffect(() => {
     console.log('Sending payload:', payload);
 
     try {
+
+      console.log("data sent:", JSON.stringify(payload))
       const response = await fetch(`${quantumServerUrl}/optimize?shots=${shots}&method=qaoa`, {
         method: 'POST',
         headers: {
