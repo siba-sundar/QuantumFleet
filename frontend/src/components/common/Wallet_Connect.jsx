@@ -1,9 +1,10 @@
 // Wallet_Connect.jsx
 import React from "react";
-import { createThirdwebClient } from "thirdweb";
-import { ConnectButton, useActiveAccount } from "thirdweb/react";
-import { inAppWallet, createWallet } from "thirdweb/wallets";
+// import { createThirdwebClient } from "thirdweb";
+// import { ConnectButton, useActiveAccount } from "thirdweb/react";
+// import { inAppWallet, createWallet } from "thirdweb/wallets";
 
+/*
 const client = createThirdwebClient({
   clientId: "3d4a668e5441b2f589fb6ca07943ae6c",
 });
@@ -38,4 +39,8 @@ export default function Wallet_Connect({ onWalletConnected }) {
       wallets={wallets}
     />
   );
+}
+*/
+export default function Wallet_Connect({ onWalletConnected }) {
+  return <div className="text-gray-500 text-sm italic">Wallet Disabled</div>;
 }
