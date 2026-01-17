@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { fetchDriverSentiment, fetchDriverSentimentHistory } from '../../utils/api.js';
-import driverImg from "../../assets/driver-profile.svg";
+const driverImg = "/driver-profile.svg";
 
 /**
  * Enhanced Driver Card with real sentiment data integration
  */
-const EnhancedDriverCard = ({ 
-  driverId, 
-  driverName = "Driver", 
+const EnhancedDriverCard = ({
+  driverId,
+  driverName = "Driver",
   driverData = {},
   showHistory = false,
   className = ""
@@ -77,17 +77,17 @@ const EnhancedDriverCard = ({
 
   const getSentimentTrend = () => {
     if (sentimentHistory.length < 2) return null;
-    
+
     const latest = sentimentHistory[0]?.score || 0;
     const previous = sentimentHistory[1]?.score || 0;
     const change = latest - previous;
-    
+
     if (Math.abs(change) < 5) return { trend: 'stable', icon: '→', color: 'text-gray-400' };
     if (change > 0) return { trend: 'improving', icon: '↗', color: 'text-green-400' };
     return { trend: 'declining', icon: '↘', color: 'text-red-400' };
   };
 
-  const backgroundColor = sentimentData?.hasSentimentData 
+  const backgroundColor = sentimentData?.hasSentimentData
     ? getBackgroundColor(sentimentData.currentScore)
     : 'bg-gray-300';
 
@@ -110,7 +110,7 @@ const EnhancedDriverCard = ({
       <div className="flex flex-col flex-grow">
         <p className='text-white text-xl font-semibold'>Driver Information</p>
 
-        <div className='flex gap-4 items-start mt-3'> 
+        <div className='flex gap-4 items-start mt-3'>
           <img
             src={driverData.profileImage || driverImg}
             alt="Driver"
@@ -158,7 +158,7 @@ const EnhancedDriverCard = ({
           <p className="font-semibold text-white">Overall Status</p>
           <div className="flex items-center gap-2">
             <p className="text-white text-3xl font-bold">
-              {sentimentData?.hasSentimentData 
+              {sentimentData?.hasSentimentData
                 ? getSentimentStatus(sentimentData.currentScore)
                 : 'No Data'
               }
@@ -193,7 +193,7 @@ const EnhancedDriverCard = ({
           {!sentimentData?.hasSentimentData && (
             <div className="bg-white/20 p-2 rounded text-center">
               <p className="text-white text-xs">No sentiment data available</p>
-              <button 
+              <button
                 onClick={() => window.location.href = '/sentiment-survey'}
                 className="text-xs text-white underline hover:text-gray-200"
               >
@@ -237,11 +237,11 @@ export const DriverSentimentIndicator = ({ driverId, score, label, size = 'sm' }
   if (!score) return null;
 
   return (
-    <div 
+    <div
       className={`${sizeClasses[size]} ${getColorClass(score)} rounded-full flex items-center justify-center text-white font-bold`}
       title={`Sentiment: ${score}/100 - ${label || 'No label'}`}
     >
-      {size !== 'xs' && Math.round(score/10)}
+      {size !== 'xs' && Math.round(score / 10)}
     </div>
   );
 };
@@ -290,7 +290,7 @@ export const DriverSentimentChart = ({ driverId, height = '200px' }) => {
   const maxScore = 100;
   const minScore = 0;
   const chartHeight = parseInt(height) - 40;
-  
+
   const points = history.map((entry, index) => {
     const x = (index / (history.length - 1)) * 100;
     const y = ((maxScore - entry.score) / (maxScore - minScore)) * chartHeight;
@@ -321,7 +321,7 @@ export const DriverSentimentChart = ({ driverId, height = '200px' }) => {
             />
           );
         })}
-        
+
         {/* Y-axis labels */}
         <text x="5" y="15" fontSize="10" fill="#666">100</text>
         <text x="5" y={chartHeight - 5} fontSize="10" fill="#666">0</text>

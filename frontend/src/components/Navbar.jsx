@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import logo from '../assets/logo1.png';
+const logo = '/logo1.png';
 import { Link } from 'react-scroll';
 import { FaXmark, FaBars, FaChevronDown, FaChevronUp } from 'react-icons/fa6';
 
@@ -23,9 +23,9 @@ const Navbar = () => {
     const handleScroll = () => {
       setIsSticky(window.scrollY > 100);
     };
-    
+
     window.addEventListener('scroll', handleScroll);
-    
+
     return () => {
       window.removeEventListener('scroll', handleScroll);
     };
@@ -54,11 +54,10 @@ const Navbar = () => {
   return (
     <header className="w-full fixed top-0 left-0 right-0 z-50">
       <nav
-        className={`py-4 lg:px-14 px-4 transition-all duration-300 ${
-          isSticky
+        className={`py-4 lg:px-14 px-4 transition-all duration-300 ${isSticky
             ? 'sticky top-0 left-0 right-0 border-b bg-white z-50'
             : 'bg-white md:bg-transparent'
-        }`}
+          }`}
       >
         <div className="flex justify-between items-center text-base gap-8">
           <a href="#" className="text-2xl font-semibold flex items-center space-x-3">
@@ -85,9 +84,8 @@ const Navbar = () => {
                   </Link>
                   {dropdown && (
                     <span
-                      className={`ml-2 transition-transform duration-300 ${
-                        openDropdown === link ? 'rotate-180' : ''
-                      }`}
+                      className={`ml-2 transition-transform duration-300 ${openDropdown === link ? 'rotate-180' : ''
+                        }`}
                     >
                       <FaChevronDown className="h-4 w-4" />
                     </span>
@@ -97,11 +95,10 @@ const Navbar = () => {
                 {/* Dropdown Menu with Transition */}
                 {dropdown && (
                   <ul
-                    className={`absolute bg-white shadow-lg py-2 mt-2 rounded-md w-48 z-20 transition-all duration-300 ease-in-out ${
-                      openDropdown === link
+                    className={`absolute bg-white shadow-lg py-2 mt-2 rounded-md w-48 z-20 transition-all duration-300 ease-in-out ${openDropdown === link
                         ? 'opacity-100 transform translate-y-0'
                         : 'opacity-0 transform -translate-y-2 pointer-events-none'
-                    }`}
+                      }`}
                   >
                     {dropdown.map((item) => (
                       <li key={item}>
@@ -154,9 +151,8 @@ const Navbar = () => {
 
         {/* Mobile nav items */}
         <div
-          className={`space-y-4 px-4 mt-16 py-7 bg-brandPrimary ${
-            isMenuOpen ? 'block fixed top-0 right-0 left-0 z-50' : 'hidden'
-          }`} // Added z-index to prevent overlapping
+          className={`space-y-4 px-4 mt-16 py-7 bg-brandPrimary ${isMenuOpen ? 'block fixed top-0 right-0 left-0 z-50' : 'hidden'
+            }`} // Added z-index to prevent overlapping
         >
           {navItems.map(({ link, path, dropdown }) => (
             <div key={path}>

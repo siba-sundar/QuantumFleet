@@ -1,6 +1,6 @@
 import React from 'react';
 
-import companyImg from "../../../assets/company-logo.svg"; // Replace with the actual path to your company logo
+const companyImg = "/company-logo.svg"; // Replace with the actual path to your company logo
 
 // CompanyDetails Component
 const CompanyDetails = ({ companyDetails }) => {
@@ -10,9 +10,9 @@ const CompanyDetails = ({ companyDetails }) => {
       <div className="flex flex-col">
         <p className='text-white text-xl font-semibold'>Company Information</p>
 
-        <div className='flex gap-2 items-center mt-3'> 
+        <div className='flex gap-2 items-center mt-3'>
           <img
-            src={ companyImg} // Use the image provided in companyDetails or fallback to default
+            src={companyImg} // Use the image provided in companyDetails or fallback to default
             alt="Company Logo"
             className="w-16 h-16 rounded-full"
           />

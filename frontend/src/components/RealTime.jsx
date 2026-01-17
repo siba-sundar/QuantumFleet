@@ -1,5 +1,5 @@
 import React from 'react';
-import Dashboard from '../assets/Dashboard Demo.svg';
+const Dashboard = '/Dashboard Demo.svg';
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
 
 const RealTime = () => {

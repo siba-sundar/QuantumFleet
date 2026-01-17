@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import driverImg from "../../../assets/driver-profile.svg";
+const driverImg = "/driver-profile.svg";
 
 // This component now only displays sentiment data passed as props
 // No automatic API calls to respect the 2-times-per-month limit
 const SentimentAnalysis = ({ driverId, sentimentData }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  
+
   // Extract sentiment info from props or set defaults
   const sentimentScore = sentimentData?.currentScore || null;
   const sentimentLabel = sentimentData?.currentLabel || '';
@@ -19,9 +19,9 @@ const SentimentAnalysis = ({ driverId, sentimentData }) => {
           {error}
         </div>
       )}
-      
-      <DriverCard 
-        sentimentLabel={sentimentLabel} 
+
+      <DriverCard
+        sentimentLabel={sentimentLabel}
         sentimentScore={sentimentScore}
         hasData={hasData}
         loading={loading}
@@ -41,7 +41,7 @@ const DriverCard = ({ sentimentLabel, sentimentScore, hasData, loading, driverId
       <div className="flex flex-col">
         <p className='text-white text-xl font-semibold'>Driver Information</p>
 
-        <div className='flex gap-2 items-center mt-3'> 
+        <div className='flex gap-2 items-center mt-3'>
           <img
             src={driverImg}
             alt="Driver"
@@ -112,7 +112,7 @@ const getSentimentStatus = (score) => {
 // Helper function to get the background color based on sentiment
 const getBackgroundColor = (sentimentLabel, hasData) => {
   if (!hasData) return 'bg-gray-500'; // Default when no data
-  
+
   switch (sentimentLabel) {
     case 'Very Positive':
       return 'bg-green-500';

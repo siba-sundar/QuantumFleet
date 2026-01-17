@@ -4,7 +4,7 @@ import { useAuth } from "../../hooks/useAuth"; // Import useAuth hook
 import { FaUser } from "react-icons/fa6"; // Import user icon
 import Wallet_Connect from "../common/Wallet_Connect";
 // assets
-import logo from "../../assets/logo1.svg";
+const logo = "/logo1.svg";
 
 function TopNav({ options }) {
   const navigate = useNavigate();
@@ -161,11 +161,10 @@ function TopNav({ options }) {
         {options.map((option, index) => (
           <li
             key={index}
-            className={`font-semibold text-sm px-8 border-2 border-[#020073] shadow-xl py-2 rounded-xl cursor-pointer transition duration-300 ${
-              activeOption === option
+            className={`font-semibold text-sm px-8 border-2 border-[#020073] shadow-xl py-2 rounded-xl cursor-pointer transition duration-300 ${activeOption === option
                 ? "bg-[#020073] text-white"
                 : "bg-white text-black"
-            }`}
+              }`}
             onClick={() => handleOptionClick(option)} // Handle the click and navigate
           >
             {option}
@@ -186,11 +185,10 @@ function TopNav({ options }) {
 
           {/* Dropdown menu - show on click or hover */}
           <div
-            className={`absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl py-2 z-50 transform transition-all duration-300 ${
-              showUserMenu
+            className={`absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl py-2 z-50 transform transition-all duration-300 ${showUserMenu
                 ? "opacity-100 translate-y-0 visible"
                 : "opacity-0 -translate-y-2 invisible"
-            }`}
+              }`}
           >
             <div className="px-4 py-2 border-b">
               <p className="font-semibold text-gray-800">

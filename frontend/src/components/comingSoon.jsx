@@ -1,11 +1,11 @@
-import Img from "../assets/coming-soon.png"
+const Img = "/coming-soon.png";
 
-function ComingSoon () {
+function ComingSoon() {
     return (
-       <>
-       <img src={Img} alt="" className="h-full w-full" />
-       <button></button>
-       </> 
+        <>
+            <img src={Img} alt="" className="h-full w-full" />
+            <button></button>
+        </>
     )
 }
 export default ComingSoon
