@@ -1,6 +1,6 @@
-# IndiFleet - Quantum-Enhanced Fleet Management System
+# QuantumFleet - Quantum-Enhanced Fleet Management System
 
-IndiFleet is a comprehensive fleet management platform that leverages quantum computing for optimized vehicle routing, blockchain technology for secure transactions, and modern web technologies for an intuitive user interface.
+QuantumFleet is a comprehensive fleet management platform that leverages quantum computing for optimized vehicle routing, blockchain technology for secure transactions, and modern web technologies for an intuitive user interface.
 
 ## 🚀 Features
 
