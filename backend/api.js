@@ -5,7 +5,7 @@ import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import { ethers } from "ethers";
+// import { ethers } from "ethers";
 // Import GPS tracking services
 import gpsRoutes from "./src/routes/gpsRoutes.js";
 import reservationsRoutes from "./src/routes/reservations.js";
@@ -20,7 +20,8 @@ import {
   EnhancedDriverRepository,
 } from "./src/repositories/SentimentRepository.js";
 import { LocationCacheRepository } from "./src/repositories/LocationCacheRepository.js";
-import {
+// import {
+/*
   createDelivery,
   assignCarrier,
   setStatus,
@@ -42,6 +43,7 @@ import {
   // releasePayment,
   // getAssignedCarrier
 } from "./src/config/blockchain.js";
+*/
 // Use backend BaseRepository for business profiles to avoid importing frontend code
 
 // Import sentiment analysis service
@@ -83,8 +85,8 @@ app.use(express.json());
 /* ============================================================
    🚀 Composite API Endpoints for Fleet Management System
    ============================================================ */
-app.get('/',(req,res) => {
-  return res.json({msg: "Server is fin"})
+app.get('/', (req, res) => {
+  return res.json({ msg: "Server is fin" })
 })
 /**
  * 1️⃣ Create Full Delivery Flow
@@ -92,6 +94,7 @@ app.get('/',(req,res) => {
  * - Creates escrow and locks funds
  * - Initializes Proof of Delivery
  */
+/*
 app.post("/delivery/create", async (req, res) => {
   try {
     const { truckId, origin, destination, eta, payee, amount } = req.body ?? {};
@@ -147,6 +150,7 @@ app.post("/delivery/create", async (req, res) => {
     return res.status(500).json({ success: false, error: err.message ?? String(err) });
   }
 });
+*/
 
 /**
  * 2️⃣ Finalize Delivery Flow
@@ -154,6 +158,7 @@ app.post("/delivery/create", async (req, res) => {
  * - Marks delivery as delivered via PoD
  * - Releases escrow payment automatically
  */
+/*
 app.post("/delivery/finalize", async (req, res) => {
   try {
     const { orderId, payee, deadline, sig } = req.body;
@@ -199,6 +204,8 @@ app.post("/delivery/finalize", async (req, res) => {
     });
   }
 });
+*/
+/*
 app.post("/delivery/status", async (req, res) => {
   try {
     const { orderId, status, deadline, signature, signer } = req.body;
@@ -249,11 +256,13 @@ app.post("/delivery/status", async (req, res) => {
     res.status(500).json({ success: false, error: err.reason || err.message });
   }
 });
+*/
 /**
  * 3️⃣ Cancel Delivery Flow
  * - Refunds escrow payment
  * - Cancels delivery status
  */
+/*
 app.post("/delivery/cancel", async (req, res) => {
   try {
     const { orderId } = req.body;
@@ -270,12 +279,14 @@ app.post("/delivery/cancel", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+*/
 
 /**
  * 4️⃣ Assign Carrier & Link Escrow
  * - Assigns carrier to delivery
  * - Fetches escrow details
  */
+/*
 app.post("/delivery/assign-carrier", async (req, res) => {
   try {
     const { orderId, carrier } = req.body;
@@ -292,12 +303,14 @@ app.post("/delivery/assign-carrier", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+*/
 
 /**
  * 5️⃣ Live Tracking (Checkpoint + Status Update)
  * - Adds checkpoint to PoD
  * - Updates delivery status
  */
+/*
 app.post("/delivery/checkpoint", async (req, res) => {
   try {
     const { orderId, latE6, lonE6, ts, status } = req.body;
@@ -314,6 +327,7 @@ app.post("/delivery/checkpoint", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+*/
 
 /**
  * 6️⃣ Full Delivery Audit (Read-Only)
@@ -321,6 +335,7 @@ app.post("/delivery/checkpoint", async (req, res) => {
  * - Fetches escrow details
  * - Fetches PoD checkpoints + finalization
  */
+/*
 app.get("/delivery/:orderId/audit", async (req, res) => {
   try {
     const orderId = req.params.orderId;
@@ -339,11 +354,13 @@ app.get("/delivery/:orderId/audit", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+*/
 
 /* ============================================================
    🔑 Access Control API Endpoints
    ============================================================ */
 
+/*
 app.post("/access/grant", async (req, res) => {
   try {
     const { account, role } = req.body;
@@ -353,7 +370,9 @@ app.post("/access/grant", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+*/
 
+/*
 app.post("/access/revoke", async (req, res) => {
   try {
     const { account, role } = req.body;
@@ -363,7 +382,9 @@ app.post("/access/revoke", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+*/
 
+/*
 app.get("/access/has/:account/:role", async (req, res) => {
   try {
     const { account, role } = req.params;
@@ -374,6 +395,7 @@ app.get("/access/has/:account/:role", async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+*/
 
 // Authentication endpoints for testing
 app.post("/api/auth/register", async (req, res) => {
@@ -994,8 +1016,8 @@ app.get("/api/drivers/available", async (req, res) => {
     const filteredDrivers =
       includeAssigned === "false"
         ? availableDrivers.filter(
-            (driver) => driver.availability.status === "available"
-          )
+          (driver) => driver.availability.status === "available"
+        )
         : availableDrivers;
 
     // Sort by experience and sentiment score
@@ -1590,13 +1612,13 @@ app.post("/api/routes", async (req, res) => {
       touchpoints: Array.isArray(touchpoints)
         ? touchpoints
         : typeof touchpoints === "string"
-        ? touchpoints.split(",")
-        : [],
+          ? touchpoints.split(",")
+          : [],
       loadUnloadPoints: Array.isArray(loadUnloadPoints)
         ? loadUnloadPoints.map(Number)
         : typeof loadUnloadPoints === "string"
-        ? loadUnloadPoints.split(",").map(Number)
-        : [],
+          ? loadUnloadPoints.split(",").map(Number)
+          : [],
       maxCapacity: Number(maxCapacity),
     };
 
@@ -1813,8 +1835,8 @@ app.post("/api/trucks/:id/schedule", async (req, res) => {
       arrivalTimes: Array.isArray(arrivalTimes)
         ? arrivalTimes
         : typeof arrivalTimes === "string"
-        ? arrivalTimes.split(",").map(Number)
-        : [],
+          ? arrivalTimes.split(",").map(Number)
+          : [],
       scheduleData: scheduleData || {},
       updatedAt: new Date(),
     };
@@ -2344,9 +2366,9 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLng / 2) *
+    Math.sin(dLng / 2);
 
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
@@ -2741,9 +2763,8 @@ app.get("/api/business/:uid/trucks", async (req, res) => {
             reservationId: reservation.id,
             status: truck.status || "Active",
             location: truck.currentLocation || { lat: 28.7041, lng: 77.1025 },
-            route: `${truck.pickupLocation || "Unknown"} to ${
-              truck.dropLocation || "Unknown"
-            }`,
+            route: `${truck.pickupLocation || "Unknown"} to ${truck.dropLocation || "Unknown"
+              }`,
           });
         });
       }
@@ -2954,9 +2975,8 @@ app.get("/api/analytics/drivers", async (req, res) => {
       return {
         driverId: driver.id,
         name:
-          `${driver.personalInfo?.firstName || ""} ${
-            driver.personalInfo?.lastName || ""
-          }`.trim() || "Unknown Driver",
+          `${driver.personalInfo?.firstName || ""} ${driver.personalInfo?.lastName || ""
+            }`.trim() || "Unknown Driver",
         safetyScore: safetyScore.toFixed(1),
         onTimeDeliveryRate: onTimeRate.toFixed(1),
         fuelEfficiencyScore: fuelEfficiency.toFixed(1),

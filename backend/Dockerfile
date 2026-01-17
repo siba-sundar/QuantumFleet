@@ -1,5 +1,5 @@
-# Use Node.js 20 Alpine as the base image
-FROM node:18-alpine
+# Use Node.js 22 Alpine as the base image
+FROM node:22-alpine
 
 # Set working directory
 WORKDIR /app
@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm i --legacy-peer-deps
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
