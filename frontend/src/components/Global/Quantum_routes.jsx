@@ -111,8 +111,8 @@ const LocationSearchComponent = ({ placeholder, onLocationSelect, initialValue, 
     });
   };
 
-  const displayPredictions = window.google && window.google.maps ? predictions : 
-    (searchValue ? mockLocations.filter(loc => 
+  const displayPredictions = window.google && window.google.maps ? predictions :
+    (searchValue ? mockLocations.filter(loc =>
       loc.description.toLowerCase().includes(searchValue.toLowerCase())
     ) : []);
 
@@ -137,7 +137,7 @@ const LocationSearchComponent = ({ placeholder, onLocationSelect, initialValue, 
             <div
               key={prediction.place_id || index}
               className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
-              onClick={() => window.google && window.google.maps ? 
+              onClick={() => window.google && window.google.maps ?
                 handleSelect(prediction) : handleMockSelect(prediction)}
             >
               {prediction.description}
@@ -208,10 +208,10 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
 
   const displayRoutes = () => {
     if (!map || !results || !directionsService) {
-      console.log('displayRoutes called but missing requirements:', { 
-        map: !!map, 
-        results: !!results, 
-        directionsService: !!directionsService 
+      console.log('displayRoutes called but missing requirements:', {
+        map: !!map,
+        results: !!results,
+        directionsService: !!directionsService
       });
       return;
     }
@@ -254,13 +254,13 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
 
       // Find starting depot using multiple strategies
       let startingDepot = null;
-      
+
       // Strategy 1: Use starting_depot from backend response
       if (truckInfo.starting_depot) {
         startingDepot = currentDepots.find(depot => depot.id === truckInfo.starting_depot);
         console.log(`Found depot via starting_depot: ${truckInfo.starting_depot}`, startingDepot);
       }
-      
+
       // Strategy 2: Use starting_location coordinates if depot not found
       if (!startingDepot && truckInfo.starting_location) {
         startingDepot = {
@@ -270,7 +270,7 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
         };
         console.log(`Created depot from starting_location:`, startingDepot);
       }
-      
+
       // Strategy 3: Find depot by truck's current_location
       if (!startingDepot) {
         // Look up the truck in vehicles to find its current_location
@@ -280,7 +280,7 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
           console.log(`Found depot via vehicle current_location: ${vehicleData.current_location}`, startingDepot);
         }
       }
-      
+
       // Strategy 4: Use the first depot as fallback
       if (!startingDepot) {
         startingDepot = currentDepots[0];
@@ -311,14 +311,14 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
       }
 
       const start = { lat: startingDepot.lat, lng: startingDepot.lon || startingDepot.lng };
-      
+
       console.log(`Route for ${truckId}:`, {
         startingDepot: startingDepot.id,
         startCoordinates: start,
         assignedLocations,
         waypoints: waypoints.map(w => ({ location: w.location, id: assignedLocations[waypoints.indexOf(w)] }))
       });
-      
+
       // Handle different route scenarios
       let routeRequest;
       if (waypoints.length === 1) {
@@ -372,11 +372,11 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
           if (result) {
             console.log(`Route has ${result.routes?.length || 0} routes with ${result.routes?.[0]?.legs?.length || 0} legs`);
           }
-          
+
           if (status === 'OK') {
             console.log(`✅ Route created successfully for ${truckId}`);
             renderer.setDirections(result);
-            
+
             // Log route distance information
             const route = result.routes[0];
             if (route) {
@@ -388,7 +388,7 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
                 distance: leg.distance.text
               })));
             }
-            
+
             // Add custom markers for trucks
             const truckMarker = new window.google.maps.Marker({
               position: start,
@@ -423,12 +423,12 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
             truckMarker.addListener('click', () => {
               infoWindow.open(map, truckMarker);
             });
-            
+
             resolve({ success: true, truckId });
           } else {
             console.error(`Directions request failed for ${truckId} due to:`, status);
             setRouteErrors(prev => [...prev, { truckId, status, error: `Failed to create route: ${status}` }]);
-            
+
             // Fallback: draw a simple polyline if directions fail
             const routeCoordinates = [start];
             assignedLocations.forEach(locId => {
@@ -437,7 +437,7 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
                 routeCoordinates.push({ lat: location.lat, lng: location.lon });
               }
             });
-            
+
             const polyline = new window.google.maps.Polyline({
               path: routeCoordinates,
               geodesic: true,
@@ -446,7 +446,7 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
               strokeWeight: 3
             });
             polyline.setMap(map);
-            
+
             // Still add truck marker even if route fails
             const truckMarker = new window.google.maps.Marker({
               position: start,
@@ -462,7 +462,7 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
                 scaledSize: new window.google.maps.Size(32, 32)
               }
             });
-            
+
             resolve({ success: false, truckId, error: status });
           }
         });
@@ -481,26 +481,26 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
     // Adjust map bounds to fit all markers and routes
     if (currentDepots.length > 0 || currentLocations.length > 0) {
       const bounds = new window.google.maps.LatLngBounds();
-      
+
       // Add depot bounds
       currentDepots.forEach(depot => {
         const coord = new window.google.maps.LatLng(depot.lat, depot.lon || depot.lng);
         bounds.extend(coord);
         console.log(`Added depot ${depot.id} to bounds:`, depot.lat, depot.lon || depot.lng);
       });
-      
+
       // Add location bounds
       currentLocations.forEach(location => {
         const coord = new window.google.maps.LatLng(location.lat, location.lon || location.lng);
         bounds.extend(coord);
         console.log(`Added location ${location.id} to bounds:`, location.lat, location.lon || location.lng);
       });
-      
+
       console.log('Fitting map to bounds:', bounds);
       map.fitBounds(bounds);
-      
+
       // Ensure minimum zoom level
-      const listener = window.google.maps.event.addListener(map, "idle", function() {
+      const listener = window.google.maps.event.addListener(map, "idle", function () {
         if (map.getZoom() > 15) map.setZoom(15);
         window.google.maps.event.removeListener(listener);
       });
@@ -540,11 +540,11 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
 
     // Add location markers
     currentLocations.forEach((location, index) => {
-      const assignedTruck = Object.entries(results.assignments).find(([truck, locs]) => 
+      const assignedTruck = Object.entries(results.assignments).find(([truck, locs]) =>
         locs.includes(location.id)
       );
       const truckIndex = assignedTruck ? Object.keys(results.assignments).indexOf(assignedTruck[0]) : 0;
-      
+
       const marker = new window.google.maps.Marker({
         position: { lat: location.lat, lng: location.lon || location.lng },
         map: map,
@@ -593,7 +593,7 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
   return (
     <div className="h-96 w-full relative">
       <div ref={mapRef} className="w-full h-full rounded-lg border border-gray-300" />
-      
+
       {/* Loading indicator */}
       {isLoadingRoutes && (
         <div className="absolute top-4 right-4 bg-white rounded-lg shadow-lg p-3 flex items-center gap-2">
@@ -601,7 +601,7 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
           <span className="text-sm text-gray-700">Calculating routes...</span>
         </div>
       )}
-      
+
       {/* Route errors */}
       {routeErrors.length > 0 && (
         <div className="absolute bottom-4 left-4 bg-red-50 border border-red-200 rounded-lg p-3 max-w-sm">
@@ -613,7 +613,7 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
           ))}
         </div>
       )}
-      
+
       {/* Debug Route Test Button */}
       {window.google && directionsService && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2">
@@ -628,7 +628,7 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
                 }
               });
               testRenderer.setMap(map);
-              
+
               directionsService.route({
                 origin: { lat: 12.9716, lng: 77.5946 },
                 destination: { lat: 12.9352, lng: 77.6245 },
@@ -653,7 +653,7 @@ const GoogleMap = ({ results, depots, locations, vehicles }) => {
 const VehicleRoutingOptimizer = () => {
   // Mode toggle state
   const [isLiveDataMode, setIsLiveDataMode] = useState(false);
-  
+
   // Assignment rows
   const [vehicles, setVehicles] = useState([]);
   // Always use sample depots
@@ -670,7 +670,7 @@ const VehicleRoutingOptimizer = () => {
     allowed_vehicle_types: ["small", "medium", "large"]
   });
 
-  const quantumServerUrl = "http://localhost:8000";
+  const quantumServerUrl = "http://localhost:8080";
   const shots = 600;
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
@@ -739,8 +739,8 @@ const VehicleRoutingOptimizer = () => {
     if (field === 'time_window') {
       updated[index][field] = value;
     } else {
-      updated[index][field] = ['lat', 'lon'].includes(field) ? parseFloat(value) || 0 : 
-                              ['demand', 'priority'].includes(field) ? parseInt(value) || 0 : value;
+      updated[index][field] = ['lat', 'lon'].includes(field) ? parseFloat(value) || 0 :
+        ['demand', 'priority'].includes(field) ? parseInt(value) || 0 : value;
     }
     setLocations(updated);
   };
@@ -840,12 +840,12 @@ const VehicleRoutingOptimizer = () => {
       });
       setDrivers(liveDrivers);
 
-    // Fetch delivery locations (tasks) - but don't set them yet, will be populated when driver is selected
-    const locCol = collection(db, 'locations');
-    const locSnap = await getDocs(locCol);
-    const liveLocations = locSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    // Don't set locations yet - will be populated based on driver selection
-    
+      // Fetch delivery locations (tasks) - but don't set them yet, will be populated when driver is selected
+      const locCol = collection(db, 'locations');
+      const locSnap = await getDocs(locCol);
+      const liveLocations = locSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Don't set locations yet - will be populated based on driver selection
+
       // Start with empty lists in live mode
       setVehicles([]);
       setLocations([]);
@@ -858,15 +858,15 @@ const VehicleRoutingOptimizer = () => {
     }
   };
 
-// Effect to load live data on mode change
-useEffect(() => {
-  if (isLiveDataMode) {
-    loadLiveData();
-  } else {
-    // Load sample data automatically on mode switch
-    loadDefaultData();
-  }
-}, [isLiveDataMode]);
+  // Effect to load live data on mode change
+  useEffect(() => {
+    if (isLiveDataMode) {
+      loadLiveData();
+    } else {
+      // Load sample data automatically on mode switch
+      loadDefaultData();
+    }
+  }, [isLiveDataMode]);
 
   const handleOptimize = async () => {
     setLoading(true);
@@ -948,7 +948,7 @@ useEffect(() => {
           <Navigation className="text-[#020073]" size={32} />
           <h2 className="text-2xl font-bold text-[#020073]">Optimization Results</h2>
         </div>
-        
+
         {/* Google Maps Display */}
         <div className="mb-8">
           <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
@@ -962,7 +962,7 @@ useEffect(() => {
             vehicles={vehicles.length > 0 ? vehicles : defaultData.vehicles}
           />
         </div>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Summary */}
           <div className="bg-blue-50 rounded-lg p-4">
@@ -1025,7 +1025,7 @@ useEffect(() => {
   const handleDriverSelect = async (index, employeeId) => {
     const updatedVehicles = [...vehicles];
     const vehicle = { ...updatedVehicles[index], id: employeeId };
-  
+
     if (isLiveDataMode) {
       const driver = drivers.find(d => d.employeeId === employeeId);
       if (driver) {
@@ -1034,7 +1034,7 @@ useEffect(() => {
           const q = query(resCol);
           const resSnap = await getDocs(q);
           let foundReservation = null;
-  
+
           for (const doc of resSnap.docs) {
             const data = doc.data();
             if (data.trucks && Array.isArray(data.trucks)) {
@@ -1045,10 +1045,10 @@ useEffect(() => {
               }
             }
           }
-  
+
           if (foundReservation) {
             const { pickupLocationData, dropLocationData } = foundReservation;
-  
+
             if (pickupLocationData?.coordinates) {
               const newDepot = {
                 id: `depot_${driver.employeeId}_${Date.now()}`,
@@ -1060,7 +1060,7 @@ useEffect(() => {
               setDepots(prev => [...prev, newDepot]);
               vehicle.current_location = newDepot.id;
             }
-  
+
             if (dropLocationData?.coordinates) {
               const newLocation = {
                 id: `loc_${driver.employeeId}_${Date.now()}`,
@@ -1090,27 +1090,25 @@ useEffect(() => {
         <div className="bg-white rounded-lg shadow-lg p-6">
           <h1 className="text-3xl font-bold text-[#020073] mb-2 text-center">Vehicle Routing Optimizer</h1>
           <p className="text-gray-600 text-center mb-6">Optimize delivery routes using quantum computing algorithms with Google Maps integration</p>
-          
+
           {/* Mode Toggle */}
           <div className="mb-6 flex justify-center">
             <div className="bg-gray-100 p-1 rounded-lg inline-flex">
               <button
                 onClick={() => setIsLiveDataMode(false)}
-                className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                  !isLiveDataMode 
-                    ? 'bg-white text-[#020073] shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${!isLiveDataMode
+                  ? 'bg-white text-[#020073] shadow-sm'
+                  : 'text-gray-600 hover:text-gray-800'
+                  }`}
               >
                 Sample Data Mode
               </button>
               <button
                 onClick={() => setIsLiveDataMode(true)}
-                className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                  isLiveDataMode 
-                    ? 'bg-white text-[#020073] shadow-sm' 
-                    : 'text-gray-600 hover:text-gray-800'
-                }`}
+                className={`px-4 py-2 rounded-md font-medium transition-colors ${isLiveDataMode
+                  ? 'bg-white text-[#020073] shadow-sm'
+                  : 'text-gray-600 hover:text-gray-800'
+                  }`}
               >
                 Live Data Mode
               </button>
@@ -1120,13 +1118,13 @@ useEffect(() => {
           {/* Mode Description */}
           <div className="mb-6 text-center">
             <p className="text-sm text-gray-600">
-              {isLiveDataMode 
+              {isLiveDataMode
                 ? "Fetch registered drivers and vehicles from Firebase database"
                 : "Use predefined sample data for testing and demonstration"
               }
             </p>
           </div>
-          
+
           {/* Quick Actions */}
           {!isLiveDataMode && (
             <div className="mb-6 flex flex-wrap gap-3 justify-center">
@@ -1154,7 +1152,7 @@ useEffect(() => {
                 Add Vehicle
               </button>
             </div>
-            
+
             {vehicles.map((vehicle, index) => (
               <div key={index} className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200">
                 <div className="flex justify-between items-center mb-2">
@@ -1177,11 +1175,11 @@ useEffect(() => {
                       <option value="">Select Driver</option>
                       {isLiveDataMode
                         ? drivers.map((d) => (
-                            <option key={d.uid} value={d.employeeId}>{d.employeeId}</option>
-                          ))
+                          <option key={d.uid} value={d.employeeId}>{d.employeeId}</option>
+                        ))
                         : defaultData.vehicles.map((v) => (
-                            <option key={v.id} value={v.id}>{v.id}</option>
-                          ))
+                          <option key={v.id} value={v.id}>{v.id}</option>
+                        ))
                       }
                     </select>
                   </div>
@@ -1250,7 +1248,7 @@ useEffect(() => {
                 Add Depot
               </button>
             </div>
-            
+
             {depots.map((depot, index) => (
               <div key={index} className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200">
                 <div className="flex justify-between items-center mb-2">
@@ -1322,7 +1320,7 @@ useEffect(() => {
                 Add Location
               </button>
             </div>
-            
+
             {locations.map((location, index) => (
               <div key={index} className="bg-gray-50 rounded-lg p-4 mb-3 border border-gray-200">
                 <div className="flex justify-between items-center mb-2">
@@ -1436,7 +1434,7 @@ useEffect(() => {
                   type="number"
                   placeholder="e.g., 4"
                   value={constraints.max_stops_per_vehicle}
-                  onChange={(e) => setConstraints({...constraints, max_stops_per_vehicle: parseInt(e.target.value) || 0})}
+                  onChange={(e) => setConstraints({ ...constraints, max_stops_per_vehicle: parseInt(e.target.value) || 0 })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#020073] focus:border-[#020073]"
                 />
               </div>
@@ -1447,7 +1445,7 @@ useEffect(() => {
                   step="0.1"
                   placeholder="e.g., 20.0"
                   value={constraints.max_distance_per_vehicle}
-                  onChange={(e) => setConstraints({...constraints, max_distance_per_vehicle: parseFloat(e.target.value) || 0})}
+                  onChange={(e) => setConstraints({ ...constraints, max_distance_per_vehicle: parseFloat(e.target.value) || 0 })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#020073] focus:border-[#020073]"
                 />
               </div>
@@ -1458,7 +1456,7 @@ useEffect(() => {
                   step="0.1"
                   placeholder="e.g., 10.0"
                   value={constraints.max_time_per_vehicle}
-                  onChange={(e) => setConstraints({...constraints, max_time_per_vehicle: parseFloat(e.target.value) || 0})}
+                  onChange={(e) => setConstraints({ ...constraints, max_time_per_vehicle: parseFloat(e.target.value) || 0 })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#020073] focus:border-[#020073]"
                 />
               </div>
@@ -1468,7 +1466,7 @@ useEffect(() => {
                 <input
                   type="checkbox"
                   checked={constraints.priority_handling}
-                  onChange={(e) => setConstraints({...constraints, priority_handling: e.target.checked})}
+                  onChange={(e) => setConstraints({ ...constraints, priority_handling: e.target.checked })}
                   className="mr-2 h-4 w-4 text-[#020073] focus:ring-[#020073] border-gray-300 rounded"
                 />
                 <span className="text-sm font-medium text-gray-700">Enable Priority Handling</span>
@@ -1509,7 +1507,7 @@ useEffect(() => {
               {loading ? 'Optimizing Routes...' : 'Optimize Routes'}
             </button>
             <p className="text-sm text-gray-500 mt-2">
-              {vehicles.length === 0 && depots.length === 0 && locations.length === 0 
+              {vehicles.length === 0 && depots.length === 0 && locations.length === 0
                 ? 'Sample data will be used if no data is entered'
                 : 'Click to start optimization with current data'
               }

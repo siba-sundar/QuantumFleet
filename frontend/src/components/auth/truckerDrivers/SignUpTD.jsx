@@ -53,10 +53,10 @@ const SignUpTD = () => {
   const handleSignUpTD = async (e) => {
     e.preventDefault();
 
-    if (!walletAddress) {
-      setFormError("⚠️ Please connect your wallet before signing up.");
-      return;
-    }
+    // if (!walletAddress) {
+    //   setFormError("⚠️ Please connect your wallet before signing up.");
+    //   return;
+    // }
 
     if (password !== confirmPassword) {
       setFormError("Passwords don't match");

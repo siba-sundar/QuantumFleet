@@ -67,8 +67,8 @@ function App() {
     <Router>
       <Routes>
         {/* Landing Page */}
-        <Route 
-          path="/" 
+        <Route
+          path="/"
           element={
             <>
               <Navbar />
@@ -80,9 +80,9 @@ function App() {
               <Demo />
               <MyFooter />
             </>
-          } 
+          }
         />
-        
+
         {/* Authentication Routes */}
         <Route path="/auth/signin" element={<SignInCard />} />
         <Route path="/auth/signup" element={<SignUpCard />} />
@@ -99,10 +99,10 @@ function App() {
         <Route path="/auth/postal/signin" element={<SignInP />} />
         <Route path="/auth/postal/signup" element={<SignUpP />} />
         <Route path="/auth/postal/details" element={<SignUpDetailsP />} />
-        
+
         {/* Dashboard Entry */}
         <Route path="/dashboard" element={<DashboardEntry />} />
-        
+
         {/* Business Dashboard Routes */}
         <Route path="/business" element={<BusinessRouteGuard><AuthTopNavLayout options={["Track Your Truck", "Truck Reservation", "Fleet Dashboard", "GPS Management"]} /></BusinessRouteGuard>}>
           <Route index element={<TrackTruck />} />
@@ -111,7 +111,7 @@ function App() {
           <Route path="fleet-dashboard" element={<FleetDashboard />} />
           <Route path="gps-management" element={<TrackingManagement />} />
         </Route>
-        
+
         {/* Super Admin Dashboard Routes */}
         <Route path="/postal" element={<PostalRouteGuard><SuperAdminDashboard options={["Company Details", "Truck Details", "Driver List", "Inbox", "Fleet Dashboard", "Quantum Route"]} /></PostalRouteGuard>}>
           <Route index element={<CompanyDetails />} />
@@ -120,20 +120,20 @@ function App() {
           <Route path="driver-list" element={<DriverList />} />
           <Route path="inbox" element={<InboxPage />} />
           <Route path="fleet-dashboard" element={<SuperAdminFleetDashboard />} />
-          <Route path="quantum-route" element={<QuantumComponent/>}/>
+          <Route path="quantum-route" element={<QuantumComponent />} />
         </Route>
-        
+
         {/* Driver Dashboard Routes */}
         <Route path="/driver" element={<DriverRouteGuard><AuthTopNavLayout options={["Your Truck", "Sentiment Analysis", "Driver Details"]} /></DriverRouteGuard>}>
           <Route index element={<YourTruck />} />
           <Route path="your-truck" element={<YourTruck />} />
-          <Route path="sentiment-analysis" element={<DriverSurveyForm />} />
-          <Route path="driver-details" element={<DriverDetailsUpdated />} />
+          <Route path="/driver/sentiment-analysis" element={<DriverSurveyForm />} />
+          <Route path="/driver/driver-details" element={<DriverDetailsUpdated />} />
         </Route>
-        
+
         {/* Public GPS Tracking */}
         <Route path="/track/:sessionId" element={<DriverTrackingPage />} />
-        
+
         {/* Legacy route redirects for backward compatibility */}
         <Route path="/signincard" element={<SignInCard />} />
         <Route path="/signupcard" element={<SignUpCard />} />

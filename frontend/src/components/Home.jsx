@@ -11,7 +11,7 @@ const Home = () => {
 
   return (
     <div className="bg-white">
-      <div className="max-w-screen-2xl mx-auto pt-24 min-h-screen">
+      <div className="w-full mx-auto pt-24 min-h-screen">
         <div className="flex flex-col md:flex-row-reverse items-center w-full h-full">
           <hr />
           <div className="md:w-1/2 flex justify-end md:flex-shrink-0 mt-5">

@@ -5,7 +5,7 @@ import { useAuth } from '../../../hooks/useAuth.jsx';
 const SignInP = () => {
   const navigate = useNavigate();
   const { signInWithEmail, loading, error, clearError } = useAuth();
-  
+
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -19,7 +19,7 @@ const SignInP = () => {
       ...prev,
       [name]: value
     }));
-    
+
     // Clear errors when user starts typing
     if (error) {
       clearError();
@@ -28,16 +28,16 @@ const SignInP = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    
+
     if (!formData.email.trim() || !formData.password) {
       return;
     }
 
     setIsSubmitting(true);
-    
+
     try {
       const result = await signInWithEmail(formData.email.trim(), formData.password);
-      
+
       if (result.success) {
         // Check if user type is postal
         if (result.user.userType === 'postal') {
@@ -60,7 +60,7 @@ const SignInP = () => {
       alert('Please enter your email address first');
       return;
     }
-    
+
     // This could be implemented to send password reset email
     navigate('/', { state: { email: formData.email } });
   };
@@ -69,22 +69,37 @@ const SignInP = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h2 className="text-2xl font-bold text-center mb-8">Super Admin Sign In</h2>
-        
+
         {error && (
           <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
             {error}
           </div>
         )}
-        
+
+
+        <div className="mt-4 rounded-md bg-gray-100 p-4 text-sm text-gray-800">
+          <p className="mb-2 font-bold text-gray-700">Demo Credentials:</p>
+
+          <p>
+            <span className="font-bold">Email:</span>{" "}
+            <span className="">superadmin@gmail.com</span>
+          </p>
+
+          <p>
+            <span className="font-bold">Password:</span>{" "}
+            <span className="">SecurePass123!</span>
+          </p>
+        </div>
+
+
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
             <label className="block text-black mb-2 font-semibold">Email Address</label>
             <input
               type="email"
               name="email"
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black ${
-                error ? 'border-red-500' : ''
-              }`}
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black ${error ? 'border-red-500' : ''
+                }`}
               placeholder="Enter your super admin email"
               value={formData.email}
               onChange={handleInputChange}
@@ -97,9 +112,8 @@ const SignInP = () => {
             <input
               type="password"
               name="password"
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black ${
-                error ? 'border-red-500' : ''
-              }`}
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black ${error ? 'border-red-500' : ''
+                }`}
               placeholder="Enter your password"
               value={formData.password}
               onChange={handleInputChange}
@@ -109,9 +123,9 @@ const SignInP = () => {
           </div>
           <div className="flex text-center justify-between mb-6">
             <div className="flex items-center">
-              <input 
-                type="checkbox" 
-                className="mr-2 rounded-md" 
+              <input
+                type="checkbox"
+                className="mr-2 rounded-md"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
                 disabled={isSubmitting || loading}
@@ -131,11 +145,10 @@ const SignInP = () => {
             <button
               type="submit"
               disabled={isSubmitting || loading || !formData.email.trim() || !formData.password}
-              className={`w-44 px-4 py-2 text-lg font-semibold rounded-full transition-all duration-200 ${
-                isSubmitting || loading || !formData.email.trim() || !formData.password
-                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                  : 'bg-black text-white hover:shadow-lg hover:bg-gray-800'
-              }`}
+              className={`w-44 px-4 py-2 text-lg font-semibold rounded-full transition-all duration-200 ${isSubmitting || loading || !formData.email.trim() || !formData.password
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-black text-white hover:shadow-lg hover:bg-gray-800'
+                }`}
             >
               {isSubmitting || loading ? 'Signing In...' : 'Sign In'}
             </button>
@@ -151,7 +164,7 @@ const SignInP = () => {
               Sign Up
             </button>
           </div>
-          
+
           <div className="mt-4 text-center">
             <button
               type="button"

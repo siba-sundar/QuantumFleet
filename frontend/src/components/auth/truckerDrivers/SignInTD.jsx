@@ -11,7 +11,7 @@ const SignInTD = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [phoneError, setPhoneError] = useState('');
   const [authMethod, setAuthMethod] = useState('phone'); // 'phone' or 'email'
-  
+
   // Clear errors when inputs change
   useEffect(() => {
     if (error || phoneError) {
@@ -23,7 +23,7 @@ const SignInTD = () => {
   const validatePhoneNumber = (phoneNumber) => {
     // Remove all non-digit characters
     const cleaned = phoneNumber.replace(/\D/g, '');
-    
+
     // Check if it's a valid Indian mobile number
     if (cleaned.length === 10 && /^[6-9]/.test(cleaned)) {
       return true;
@@ -35,9 +35,9 @@ const SignInTD = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    
+
     setIsLoading(true);
-    
+
     try {
       if (authMethod === 'phone') {
         // Validate phone number
@@ -48,15 +48,15 @@ const SignInTD = () => {
         }
 
         const result = await sendOTP(phone);
-        
+
         if (result.success) {
           // Navigate to OTP page with confirmation result and phone number
-          navigate('/auth/driver/otp', { 
-            state: { 
+          navigate('/auth/driver/otp', {
+            state: {
               phone: result.phoneNumber || phone,
               confirmationResult: result.confirmationResult,
               next: '/driver/your-truck'
-            } 
+            }
           });
         } else {
           setPhoneError(result.message || 'Failed to send OTP. Try email method below.');
@@ -70,7 +70,7 @@ const SignInTD = () => {
         }
 
         const result = await signInWithEmail(email, password);
-        
+
         if (result.success) {
           // Check if user type is driver
           if (result.user.userType === 'driver') {
@@ -84,8 +84,8 @@ const SignInTD = () => {
         }
       }
     } catch (error) {
-      setPhoneError(authMethod === 'phone' ? 
-        'SMS billing not enabled. Please use email method or enable Firebase billing.' : 
+      setPhoneError(authMethod === 'phone' ?
+        'SMS billing not enabled. Please use email method or enable Firebase billing.' :
         'An error occurred during sign-in'
       );
     } finally {
@@ -97,29 +97,27 @@ const SignInTD = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h2 className="text-2xl font-bold text-center mb-6">Driver Sign In</h2>
-        
+
         {/* Authentication method toggle */}
         <div className="mb-6">
           <div className="flex justify-center space-x-4 mb-4">
             <button
               type="button"
               onClick={() => setAuthMethod('phone')}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                authMethod === 'phone'
-                  ? 'bg-black text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium ${authMethod === 'phone'
+                ? 'bg-black text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
             >
               Phone OTP
             </button>
             <button
               type="button"
               onClick={() => setAuthMethod('email')}
-              className={`px-4 py-2 rounded-lg font-medium ${
-                authMethod === 'email'
-                  ? 'bg-black text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium ${authMethod === 'email'
+                ? 'bg-black text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
             >
               Email Login
             </button>
@@ -130,7 +128,7 @@ const SignInTD = () => {
             </p>
           )}
         </div>
-        
+
         {/* reCAPTCHA container - hidden but required for Firebase phone auth */}
         <div id="recaptcha-container" style={{ display: 'none' }}></div>
         <form onSubmit={handleSubmit}>
@@ -140,9 +138,8 @@ const SignInTD = () => {
               <label className="block text-black mb-2 font-semibold">Phone Number</label>
               <input
                 type="tel"
-                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black ${
-                  phoneError || error ? 'border-red-500' : ''
-                }`}
+                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black ${phoneError || error ? 'border-red-500' : ''
+                  }`}
                 placeholder="Enter your 10-digit mobile number"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -157,13 +154,26 @@ const SignInTD = () => {
           ) : (
             // Email authentication
             <>
+
+              <div className="mt-4 rounded-md bg-gray-100 p-4 text-sm text-gray-800">
+                <p className="mb-2 font-bold text-gray-700">Demo Credentials:</p>
+
+                <p>
+                  <span className="font-bold">Email:</span>{" "}
+                  <span className="">driver@gmail.com</span>
+                </p>
+
+                <p>
+                  <span className="font-bold">Password:</span>{" "}
+                  <span className="">SecurePass123!</span>
+                </p>
+              </div>
               <div className="mb-4">
                 <label className="block text-black mb-2 font-semibold">Email</label>
                 <input
                   type="email"
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black ${
-                    phoneError || error ? 'border-red-500' : ''
-                  }`}
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black ${phoneError || error ? 'border-red-500' : ''
+                    }`}
                   placeholder="Enter your email address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -175,9 +185,8 @@ const SignInTD = () => {
                 <label className="block text-black mb-2 font-semibold">Password</label>
                 <input
                   type="password"
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black ${
-                    phoneError || error ? 'border-red-500' : ''
-                  }`}
+                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black ${phoneError || error ? 'border-red-500' : ''
+                    }`}
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -195,13 +204,12 @@ const SignInTD = () => {
             <button
               type="submit"
               disabled={isLoading || loading || (authMethod === 'phone' && !phone.trim()) || (authMethod === 'email' && (!email.trim() || !password.trim()))}
-              className={`w-44 px-4 py-2 text-lg font-semibold rounded-full transition-all duration-200 ${
-                isLoading || loading || (authMethod === 'phone' && !phone.trim()) || (authMethod === 'email' && (!email.trim() || !password.trim()))
-                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                  : 'bg-black text-white hover:shadow-lg hover:bg-gray-800'
-              }`}
+              className={`w-44 px-4 py-2 text-lg font-semibold rounded-full transition-all duration-200 ${isLoading || loading || (authMethod === 'phone' && !phone.trim()) || (authMethod === 'email' && (!email.trim() || !password.trim()))
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-black text-white hover:shadow-lg hover:bg-gray-800'
+                }`}
             >
-              {isLoading || loading ? 
+              {isLoading || loading ?
                 (authMethod === 'phone' ? 'Sending OTP...' : 'Signing In...') :
                 (authMethod === 'phone' ? 'Send OTP' : 'Sign In')
               }
@@ -218,7 +226,7 @@ const SignInTD = () => {
               Register Here
             </button>
           </div>
-          
+
           <div className="mt-4 text-center">
             <button
               type="button"
