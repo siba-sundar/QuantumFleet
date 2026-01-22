@@ -670,7 +670,7 @@ const VehicleRoutingOptimizer = () => {
     allowed_vehicle_types: ["small", "medium", "large"]
   });
 
-  const quantumServerUrl = "https://quantumfleet-aer.onrender.com";
+  const quantumServerUrl = "https://quantumfleet-aer-1.onrender.com";
   const shots = 600;
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
